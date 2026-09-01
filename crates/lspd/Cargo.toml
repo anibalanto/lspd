@@ -1,0 +1,26 @@
+[package]
+name = "lspd"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "lspd"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lspd"
+path = "src/main.rs"
+
+[dependencies]
+lspd-client = { path = "../lspd-client" }
+async-lsp   = "0.2"
+tokio       = { version = "1", features = ["full"] }
+tokio-util  = { version = "0.7", features = ["compat"] }
+tower       = { version = "0.4", features = ["util"] }
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+anyhow      = "1"
+clap        = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3"

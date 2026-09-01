@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "crates/lspd",
+    "crates/lspd-client",
+]
+resolver = "2"

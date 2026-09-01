@@ -1,0 +1,20 @@
+# El transporte es lo único que cambia entre sistemas operativos, así que es lo
+# único que hay que correr en los tres. El resto del daemon es el mismo código.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --workspace
+      - run: cargo test --workspace
