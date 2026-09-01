@@ -9,6 +9,21 @@ pub struct CalleeInfo {
     pub col: u32,
 }
 
+/// Dónde está declarado algo.
+///
+/// Es lo que contesta `definitions`, y lo que un consumidor necesita para ir a
+/// buscar el texto: el archivo y el rango, en línea/columna 0-based como LSP.
+/// **`lspd` no lee el contenido** — devuelve ubicaciones y nada más.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DefinitionInfo {
+    pub name: String,
+    pub file: String,
+    pub line: u32,
+    pub col: u32,
+    pub end_line: u32,
+    pub end_col: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SymbolInfo {
     pub symbol: String,

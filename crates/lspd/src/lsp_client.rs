@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use crate::language::Language;
-use crate::types::{CalleeInfo, SymbolInfo};
+use crate::types::{CalleeInfo, DefinitionInfo, SymbolInfo};
 
 pub struct LspClient {
     // ServerSocket requires &mut self → protect with Mutex for shared async access
@@ -260,6 +260,68 @@ impl LspClient {
         let name = extract_name(&text);
 
         Ok(Some(SymbolInfo { symbol: text, name, kind: "function".to_string() }))
+    }
+
+    /// `textDocument/definition` sobre una posición.
+    ///
+    /// **Un salto y ninguna interpretación.** Devuelve dónde está declarado lo que
+    /// se menciona ahí; qué se hace con eso es de quien pregunta. Es la pregunta que
+    /// el cierre de firma de bilinker necesita, y la única que `lspd` sabe contestar
+    /// que no es del call graph.
+    pub async fn definitions(&self, file: &Path, line: u32, col: u32) -> Result<Vec<DefinitionInfo>> {
+        self.queries.fetch_add(1, Ordering::Relaxed);
+
+        let uri = self.file_url(file)?;
+        let mut server = self.server.lock().await;
+
+        let content = std::fs::read_to_string(file)
+            .map_err(|e| anyhow::anyhow!("read {}: {e}", file.display()))?;
+        server
+            .did_open(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: lang_id(file).to_string(),
+                    version: 0,
+                    text: content,
+                },
+            })
+            .map_err(|e| anyhow::anyhow!("didOpen: {e:?}"))?;
+
+        let resp = server
+            .definition(GotoDefinitionParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier { uri },
+                    position: Position { line, character: col },
+                },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!("definition: {e:?}"))?;
+
+        // Las tres formas que la respuesta puede tomar se aplanan acá: para quien
+        // pregunta son ubicaciones, y cuál de las tres usó el servidor no es un dato
+        // suyo.
+        let locations: Vec<Location> = match resp {
+            None => Vec::new(),
+            Some(GotoDefinitionResponse::Scalar(l)) => vec![l],
+            Some(GotoDefinitionResponse::Array(v))  => v,
+            Some(GotoDefinitionResponse::Link(v))   => v.into_iter()
+                .map(|l| Location { uri: l.target_uri, range: l.target_range })
+                .collect(),
+        };
+
+        Ok(locations.into_iter().filter_map(|l| {
+            let path = l.uri.to_file_path().ok()?;
+            Some(DefinitionInfo {
+                name:     path.file_stem()?.to_string_lossy().to_string(),
+                file:     path.to_string_lossy().to_string(),
+                line:     l.range.start.line,
+                col:      l.range.start.character,
+                end_line: l.range.end.line,
+                end_col:  l.range.end.character,
+            })
+        }).collect())
     }
 
     pub async fn shutdown(&self) {
