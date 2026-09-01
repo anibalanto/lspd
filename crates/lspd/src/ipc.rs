@@ -150,6 +150,7 @@ async fn dispatch(
         "callees"   => positional!(callees),
         "callers"   => positional!(callers),
         "symbol_at" => positional!(symbol_at),
+        "definitions" => positional!(definitions),
         "status"    => {
             let status = manager.status().await;
             (RpcResponse::ok(id, serde_json::json!(status)), false)

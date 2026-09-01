@@ -7,7 +7,7 @@ use tokio::sync::RwLock;
 
 use crate::language::Language;
 use crate::lsp_client::LspClient;
-use crate::types::{CalleeInfo, LspStatus, SymbolInfo};
+use crate::types::{CalleeInfo, DefinitionInfo, LspStatus, SymbolInfo};
 
 pub struct LspManager {
     workspace: PathBuf,
@@ -64,6 +64,18 @@ impl LspManager {
         let client = self.client_for(file).await?;
         let abs = abs_path(file, &self.workspace);
         client.symbol_at(&abs, line, col).await
+    }
+
+    /// Dónde están declarados los tipos que se mencionan en esta posición.
+    pub async fn definitions(
+        &self,
+        file: &str,
+        line: u32,
+        col: u32,
+    ) -> anyhow::Result<Vec<DefinitionInfo>> {
+        let client = self.client_for(file).await?;
+        let abs = abs_path(file, &self.workspace);
+        client.definitions(&abs, line, col).await
     }
 
     pub async fn shutdown(&self) {
