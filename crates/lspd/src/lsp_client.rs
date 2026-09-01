@@ -34,13 +34,31 @@ impl LspClient {
                 .notification::<notif::ShowMessage>(|_, _| ControlFlow::Continue(()))
                 .notification::<notif::Progress>(|_, _| ControlFlow::Continue(()))
                 .notification::<notif::PublishDiagnostics>(|_, _| ControlFlow::Continue(()))
+                // **Y cualquier otra**, que es lo que "ignore all" quería decir.
+                //
+                // Las extensiones son la norma: `jdtls` manda `language/status` en el
+                // handshake, rust-analyzer manda `experimental/serverStatus`. Sin esto
+                // la primera desconocida cae como error de ruteo y **mata el
+                // mainloop** — Java no llegaba ni a inicializar.
+                //
+                // Una notificación no espera respuesta: ignorar una que no se entiende
+                // es lo que el protocolo pide, no una concesión.
+                .unhandled_notification(|_, _| ControlFlow::Continue(()))
                 // Server→client requests: must respond or async-lsp closes the connection
                 .request::<request::RegisterCapability, _>(|_, _| async { Ok(()) })
                 .request::<request::UnregisterCapability, _>(|_, _| async { Ok(()) })
                 .request::<request::WorkspaceConfiguration, _>(|_, _| async {
                     Ok::<Vec<serde_json::Value>, _>(vec![])
                 })
-                .request::<request::WorkDoneProgressCreate, _>(|_, _| async { Ok(()) });
+                .request::<request::WorkDoneProgressCreate, _>(|_, _| async { Ok(()) })
+                // Con una request es al revés: ignorarla **cuelga al servidor**, que
+                // se queda esperando. Se contesta un error y la conexión sigue.
+                .unhandled_request(|_, req: async_lsp::AnyRequest| async move {
+                    Err(async_lsp::ResponseError::new(
+                        async_lsp::ErrorCode::METHOD_NOT_FOUND,
+                        format!("lspd no implementa `{}`", req.method),
+                    ))
+                });
             tower::ServiceBuilder::new().service(router)
         });
 
