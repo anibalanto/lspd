@@ -1,0 +1,4 @@
+file: crates/lspd/src/main.rs
+query: |-
+  (function_item
+    name: (identifier) @n0 (#eq? @n0 "main")) @target

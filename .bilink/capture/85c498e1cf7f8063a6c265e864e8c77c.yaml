@@ -1,0 +1,4 @@
+file: crates/lspd/src/ipc.rs
+query: |-
+  (function_item
+    name: (identifier) @n0 (#eq? @n0 "serve")) @target
