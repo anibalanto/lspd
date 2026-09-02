@@ -44,6 +44,35 @@ impl Language {
         }
     }
 
+    /// Lo que este servidor necesita oír en el `initialize` para arrancar de verdad.
+    ///
+    /// **`initializationOptions` es un campo libre de LSP**, y cada servidor pone ahí
+    /// lo suyo. Es la segunda casilla de la tabla: un dato por servidor, no una
+    /// decisión, así que agregar un lenguaje sigue siendo agregar una fila.
+    ///
+    /// `jdtls` es el que lo necesita: **lee sus raíces de acá y no del campo estándar
+    /// `workspaceFolders`**. Sin esto no importa el proyecto — cae a su *proyecto
+    /// invisible*, se queda sin classpath, y contesta `[]` con el servidor en `READY`.
+    /// Los otros tres no piden nada.
+    pub fn initialization_options(&self, workspace: &std::path::Path) -> Option<serde_json::Value> {
+        match self {
+            Self::Java => {
+                let uri = async_lsp::lsp_types::Url::from_file_path(workspace).ok()?;
+                Some(serde_json::json!({
+                    "workspaceFolders": [uri.to_string()],
+                    // Sin esto jdtls pregunta por progreso con requests que no
+                    // implementamos y espera respuesta; declararlo en falso le dice
+                    // que no las mande.
+                    "extendedClientCapabilities": {
+                        "progressReportProvider": false,
+                        "classFileContentsSupport": false,
+                    },
+                }))
+            }
+            _ => None,
+        }
+    }
+
     /// Si este servidor avisa cuándo terminó de indexar.
     ///
     /// **Es una propiedad del servidor, no de `lspd`.** Los dos que lo hacen lo

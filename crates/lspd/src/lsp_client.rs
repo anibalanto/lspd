@@ -159,6 +159,12 @@ impl LspClient {
             // para siempre y ninguna pregunta se contestaría nunca.
             //
             // `jdtls` no necesita nada: `language/status` la manda igual.
+            // **Lo que este servidor en particular necesita oír.** `jdtls` lee sus
+            // raíces de acá y no del `workspace_folders` de arriba: sin esto no
+            // importa el proyecto, cae a su proyecto invisible y contesta `[]` con el
+            // servidor en `READY`. Ver `concepts/language-servers.md` § "Y la tabla
+            // tiene una columna más".
+            initialization_options: lang.initialization_options(workspace),
             capabilities: ClientCapabilities {
                 experimental: Some(serde_json::json!({
                     "serverStatusNotification": true,
