@@ -44,6 +44,30 @@ impl Language {
         }
     }
 
+    /// Con cuánta memoria se lanza este servidor. La tercera casilla de la tabla.
+    ///
+    /// **Un techo que no se fija no es "sin techo": es el que el runtime del servidor
+    /// calcule solo.** La JVM de `jdtls` fija su heap máximo en un cuarto de la RAM de
+    /// la máquina —7,8 GB en una de 32— y arranca reservando 1 GB, y ninguno de los
+    /// dos números los eligió nadie de este lado.
+    ///
+    /// Lo que hace daño no es el tamaño sino que **escale con la máquina**: lo que en
+    /// la del que desarrolla entra justo, en la del que tiene el doble se lleva puesta
+    /// la sesión. Y la máquina grande es la que nadie prueba. Un número fijo falla
+    /// igual en las dos, que es lo que se le pide a un límite.
+    ///
+    /// Los otros tres no exponen un techo y el suyo no crece con la máquina, así que
+    /// la fila va vacía y eso no es una omisión.
+    pub fn spawn_args(&self) -> &'static [&'static str] {
+        match self {
+            // El launcher de `jdtls` pasa los suyos con `=`, y ya pone `-Xms1G` de
+            // piso: 2G deja lugar para un proyecto real sin que el techo dependa de
+            // en qué máquina cayó.
+            Self::Java => &["--jvm-arg=-Xmx2G"],
+            _          => &[],
+        }
+    }
+
     /// Lo que este servidor necesita oír en el `initialize` para arrancar de verdad.
     ///
     /// **`initializationOptions` es un campo libre de LSP**, y cada servidor pone ahí
@@ -158,4 +182,29 @@ fn is_in_path(name: &str) -> bool {
         let full = dir.join(name);
         full.is_file()
     })
+}
+
+#[cfg(test)]
+mod spawn_args_tests {
+    use super::*;
+
+    /// **El techo tiene que ser un número y no una fracción de la máquina.** Es la
+    /// diferencia entera: una fracción hace que el mismo daemon aguante en una máquina
+    /// y se lleve puesta la sesión en otra más grande, que es justo la que nadie
+    /// prueba.
+    #[test]
+    fn java_se_lanza_con_un_techo_fijo() {
+        let args = Language::Java.spawn_args();
+        assert!(args.iter().any(|a| a.contains("-Xmx")),
+                "jdtls sin -Xmx hereda un cuarto de la RAM de la máquina: {args:?}");
+    }
+
+    /// Los otros no exponen un techo, y la fila vacía es el dato — no una fila que
+    /// falta.
+    #[test]
+    fn los_que_no_exponen_techo_se_lanzan_pelados() {
+        for lang in [Language::Rust, Language::TypeScript, Language::Python] {
+            assert!(lang.spawn_args().is_empty(), "{lang:?} no debería llevar args");
+        }
+    }
 }

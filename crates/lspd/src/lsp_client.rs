@@ -122,6 +122,10 @@ impl LspClient {
 
         // Use tokio::process and bridge to futures_io via tokio_util::compat
         let mut child = tokio::process::Command::new(&exe)
+            // **Con cuánta memoria, que es la otra cosa que el hijo heredaría sin que
+            // nadie la eligiera.** Mismo argumento que el `cwd` de acá abajo, y la
+            // misma tabla: ver `language.rs::spawn_args`.
+            .args(lang.spawn_args())
             // **El servidor se arranca parado en el workspace, no donde esté el
             // daemon.** `workspace_folders` en el `initialize` no alcanza: el
             // launcher de `jdtls` deriva su `-data` de `basename(getcwd())` antes de
