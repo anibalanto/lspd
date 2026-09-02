@@ -45,7 +45,16 @@ fn readiness_from(method: &str, params: &serde_json::Value) -> Option<Readiness>
 pub struct LspClient {
     // ServerSocket requires &mut self → protect with Mutex for shared async access
     server:      Mutex<async_lsp::ServerSocket>,
-    _task:       tokio::task::JoinHandle<()>,
+    /// **El proceso es de este cliente**, y por eso el `Child` vive acá y no adentro
+    /// de la task del mainloop.
+    ///
+    /// Tenerlo allá parecía equivalente —el proceso dura lo que dura el mainloop, y
+    /// el `kill_on_drop(true)` corre al soltarlo— y es lo contrario: **una task
+    /// desprendida no la suelta nadie**, así que el hijo le sobrevivía a su cliente y
+    /// el `kill_on_drop` no se ejecutaba nunca. Un servidor al que ya nadie le puede
+    /// hablar y que igual no se muere es la fuga que se llevó una sesión entera.
+    child:       Mutex<tokio::process::Child>,
+    task:        tokio::task::JoinHandle<()>,
     pub lang:    Language,
     pub queries: AtomicU64,
     workspace:   PathBuf,
@@ -135,8 +144,6 @@ impl LspClient {
         let stdout = child.stdout.take().unwrap().compat();
 
         let task = tokio::spawn(async move {
-            // child must live as long as the mainloop — drop kills the process
-            let _child = child;
             if let Err(e) = mainloop.run_buffered(stdout, stdin).await {
                 eprintln!("[lsp] mainloop exited: {e:?}");
             }
@@ -183,7 +190,8 @@ impl LspClient {
 
         Ok(Arc::new(Self {
             server: Mutex::new(server),
-            _task: task,
+            child: Mutex::new(child),
+            task,
             lang,
             queries: AtomicU64::new(0),
             workspace: workspace.to_path_buf(),
@@ -434,6 +442,35 @@ impl LspClient {
         };
         Url::from_file_path(&abs)
             .map_err(|_| anyhow::anyhow!("invalid file path: {}", abs.display()))
+    }
+}
+
+/// **Soltar el cliente es matar al servidor**, y no *"además"* matarlo.
+///
+/// Es la forma que tiene la invariante de `concepts/language-servers.md` § *"Uno por
+/// lenguaje es una invariante"* de no depender de que alguien se acuerde: sacar el
+/// `Arc` del mapa alcanza, porque el último que lo suelta pasa por acá. Un camino de
+/// salida que hay que invocar a mano es un camino que algún `return` no toma.
+///
+/// El [`shutdown`](LspClient::shutdown) por LSP sigue siendo el ordenado —le da al
+/// servidor la chance de cerrar sus índices—; esto es lo que vale cuando no lo
+/// atienden, y lo único que vale cuando nadie lo llamó.
+impl Drop for LspClient {
+    fn drop(&mut self) {
+        // **El mainloop primero.** Matar al hijo con la task viva le da a esa task un
+        // stdout cerrado que reporta como error de conexión: ruido en stderr sobre un
+        // cierre que se pidió.
+        self.task.abort();
+
+        // `start_kill` y no `kill().await`: `Drop` no es async, y esperar acá
+        // bloquearía el runtime. El reaper de tokio se ocupa del zombie.
+        //
+        // **Explícito aunque el `Command` ya lleve `kill_on_drop(true)`**, porque lo
+        // que hace falta que se lea acá es que soltarlo mata: el flag está trescientas
+        // líneas más arriba y es exactamente el que ya se creyó cumplido una vez.
+        if let Ok(mut child) = self.child.try_lock() {
+            let _ = child.start_kill();
+        }
     }
 }
 
