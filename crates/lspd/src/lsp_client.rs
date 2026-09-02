@@ -113,6 +113,17 @@ impl LspClient {
 
         // Use tokio::process and bridge to futures_io via tokio_util::compat
         let mut child = tokio::process::Command::new(&exe)
+            // **El servidor se arranca parado en el workspace, no donde esté el
+            // daemon.** `workspace_folders` en el `initialize` no alcanza: el
+            // launcher de `jdtls` deriva su `-data` de `basename(getcwd())` antes de
+            // que LSP exista, así que con el cwd del daemon indexa un proyecto que
+            // no es —y dos workspaces con el mismo nombre de directorio comparten
+            // datos—. Es lo que hacía que `definitions` devolviera `[]` con el
+            // servidor ya listo.
+            //
+            // Y no es sólo de jdtls: el cwd de un proceso hijo que hereda el de
+            // quien lo lanzó es un dato que nadie eligió. Acá sí se elige.
+            .current_dir(workspace)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
