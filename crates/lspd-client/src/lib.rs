@@ -44,6 +44,40 @@ pub fn pid() -> u32 {
         .ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0)
 }
 
+/// El código de `-32001`: el language server está indexando y todavía no puede
+/// contestar.
+///
+/// **Es una constante y no un número suelto en cada consumidor.** Ver
+/// `concepts/protocol.md`.
+pub const NOT_READY: i32 = -32001;
+
+/// Un error que el daemon **contestó**, con su código.
+///
+/// El código viaja porque la tabla del protocolo no sirve aplastada a un mensaje:
+/// distinguir `-32001` de `-32000` matcheando prosa es hacer que el próximo que
+/// mejore la redacción rompa a un consumidor.
+///
+/// No cubre "no llegué al daemon" — eso es un error de `connect_to`, y el cliente ya
+/// los distingue por el tipo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RpcError {
+    pub code:    i32,
+    pub message: String,
+}
+
+impl RpcError {
+    /// Si es el daemon diciendo *"volvé a preguntar"*.
+    pub fn is_not_ready(&self) -> bool { self.code == NOT_READY }
+}
+
+impl std::fmt::Display for RpcError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl std::error::Error for RpcError {}
+
 /// Cuánto se espera una respuesta antes de darla por perdida.
 pub const TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -76,7 +110,11 @@ pub fn rpc_at(ep: &Endpoint, method: &str, params: serde_json::Value) -> Result<
     let resp: serde_json::Value = serde_json::from_str(resp_line.trim())
         .with_context(|| format!("respuesta que no es JSON: {resp_line:?}"))?;
     if let Some(err) = resp.get("error") {
-        anyhow::bail!("{}", err["message"].as_str().unwrap_or("unknown error"));
+        return Err(RpcError {
+            code:    err["code"].as_i64().unwrap_or(0) as i32,
+            message: err["message"].as_str().unwrap_or("unknown error").to_string(),
+        }
+        .into());
     }
     Ok(resp["result"].clone())
 }

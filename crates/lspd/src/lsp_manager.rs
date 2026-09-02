@@ -7,6 +7,7 @@ use tokio::sync::RwLock;
 
 use crate::language::Language;
 use crate::lsp_client::LspClient;
+use crate::language::Readiness;
 use crate::types::{CalleeInfo, DefinitionInfo, LspStatus, SymbolInfo};
 
 pub struct LspManager {
@@ -45,12 +46,14 @@ impl LspManager {
 
     pub async fn callees(&self, file: &str, line: u32, col: u32) -> anyhow::Result<Vec<CalleeInfo>> {
         let client = self.client_for(file).await?;
+        ready_or_bail(&client)?;
         let abs = abs_path(file, &self.workspace);
         client.callees(&abs, line, col).await
     }
 
     pub async fn callers(&self, file: &str, line: u32, col: u32) -> anyhow::Result<Vec<CalleeInfo>> {
         let client = self.client_for(file).await?;
+        ready_or_bail(&client)?;
         let abs = abs_path(file, &self.workspace);
         client.callers(&abs, line, col).await
     }
@@ -62,6 +65,7 @@ impl LspManager {
         col: u32,
     ) -> anyhow::Result<Option<SymbolInfo>> {
         let client = self.client_for(file).await?;
+        ready_or_bail(&client)?;
         let abs = abs_path(file, &self.workspace);
         client.symbol_at(&abs, line, col).await
     }
@@ -74,6 +78,7 @@ impl LspManager {
         col: u32,
     ) -> anyhow::Result<Vec<DefinitionInfo>> {
         let client = self.client_for(file).await?;
+        ready_or_bail(&client)?;
         let abs = abs_path(file, &self.workspace);
         client.definitions(&abs, line, col).await
     }
@@ -93,7 +98,7 @@ impl LspManager {
         r.values()
             .map(|c| LspStatus {
                 name:    c.lang.name().to_string(),
-                state:   "RUNNING".to_string(),
+                state:   c.readiness.get().as_str().to_string(),
                 queries: c.queries.load(Ordering::Relaxed),
             })
             .collect()
@@ -103,4 +108,39 @@ impl LspManager {
 fn abs_path(file: &str, workspace: &Path) -> std::path::PathBuf {
     let p = Path::new(file);
     if p.is_absolute() { p.to_path_buf() } else { workspace.join(file) }
+}
+
+/// El error que un servidor todavía indexando produce, y que `dispatch` traduce a
+/// `-32001`.
+///
+/// **Tipo propio y no un `anyhow!` con un mensaje**, porque hay que reconocerlo del
+/// otro lado: un código de error que dependa de matchear un string es un código de
+/// error que se rompe cuando alguien mejora la redacción.
+#[derive(Debug)]
+pub struct NotReady {
+    pub lang: &'static str,
+}
+
+impl std::fmt::Display for NotReady {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} todavía está indexando: volvé a preguntar. `lspd status` dice cuándo.",
+               self.lang)
+    }
+}
+
+impl std::error::Error for NotReady {}
+
+/// Se niega a preguntarle a un servidor que dijo que todavía no puede contestar.
+///
+/// **Es acá y no en `LspClient` porque acá está la decisión y allá la conexión.** Y
+/// no se espera: los siete minutos de un `rust-analyzer` en frío no entran en el
+/// timeout de ningún cliente, y tapar el vacío con una espera es lo mismo que
+/// taparlo con un reintento.
+fn ready_or_bail(client: &crate::lsp_client::LspClient) -> anyhow::Result<()> {
+    match client.readiness.get() {
+        Readiness::Indexing => Err(NotReady { lang: client.lang.name() }.into()),
+        // `Running` pasa: es *"este servidor no informa"*, y negarle la pregunta a un
+        // lenguaje que nunca va a avisar lo dejaría mudo para siempre.
+        Readiness::Ready | Readiness::Running => Ok(()),
+    }
 }
