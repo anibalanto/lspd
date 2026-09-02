@@ -10,8 +10,37 @@ use async_lsp::lsp_types::*;
 use tokio::sync::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use crate::language::Language;
+use crate::language::{Language, Readiness, ReadinessCell};
 use crate::types::{CalleeInfo, DefinitionInfo, SymbolInfo};
+
+/// Qué readiness declara una notificación, si declara alguna.
+///
+/// **Las dos formas son de cada servidor y no del protocolo**, así que se traducen
+/// acá y de acá para arriba no hay dos vocabularios. `None` es *"esta notificación
+/// no habla de readiness"*, que es el caso de casi todas.
+///
+/// De un servidor que informa no sale nunca `Running`: `Running` significa *"este
+/// servidor no informa"*, y uno que mandó la notificación ya se contradijo.
+fn readiness_from(method: &str, params: &serde_json::Value) -> Option<Readiness> {
+    match method {
+        // rust-analyzer: `quiescent` es *"no tengo trabajo pendiente"*. `health` habla
+        // de errores del proyecto —un `cargo check` que falla— y no de si puede
+        // contestar, así que no se mira: un workspace con errores igual resuelve
+        // tipos.
+        "experimental/serverStatus" => match params.get("quiescent")?.as_bool()? {
+            true  => Some(Readiness::Ready),
+            false => Some(Readiness::Indexing),
+        },
+        // jdtls: `ServiceReady` es el único que promete que el classpath está armado.
+        // `Started` sale antes y no alcanza — es el que hacía que un `definitions`
+        // pareciera contestado.
+        "language/status" => match params.get("type")?.as_str()? {
+            "ServiceReady" => Some(Readiness::Ready),
+            _              => Some(Readiness::Indexing),
+        },
+        _ => None,
+    }
+}
 
 pub struct LspClient {
     // ServerSocket requires &mut self → protect with Mutex for shared async access
@@ -20,13 +49,22 @@ pub struct LspClient {
     pub lang:    Language,
     pub queries: AtomicU64,
     workspace:   PathBuf,
+    /// Lo que el servidor dijo de sí mismo. Ver `language.rs`.
+    pub readiness: Arc<ReadinessCell>,
 }
 
 impl LspClient {
     pub async fn spawn(lang: Language, workspace: &Path) -> Result<Arc<Self>> {
         let exe = lang.find_executable()?;
 
+        // **Se crea antes que el mainloop y antes que el cliente**, porque los dos la
+        // necesitan y ninguno de los dos existe cuando se arma el otro: el router
+        // vive en un closure que no puede ver un `LspClient` que todavía no está.
+        let readiness = Arc::new(ReadinessCell::new(lang));
+        let for_router = Arc::clone(&readiness);
+
         let (mainloop, mut server) = async_lsp::MainLoop::new_client(|_server| {
+            let readiness = Arc::clone(&for_router);
             let mut router = async_lsp::router::Router::new(());
             router
                 // Server→client notifications (ignore all)
@@ -34,18 +72,58 @@ impl LspClient {
                 .notification::<notif::ShowMessage>(|_, _| ControlFlow::Continue(()))
                 .notification::<notif::Progress>(|_, _| ControlFlow::Continue(()))
                 .notification::<notif::PublishDiagnostics>(|_, _| ControlFlow::Continue(()))
+                // **Y cualquier otra**, que es lo que "ignore all" quería decir.
+                //
+                // Las extensiones son la norma: `jdtls` manda `language/status` en el
+                // handshake, rust-analyzer manda `experimental/serverStatus`. Sin esto
+                // la primera desconocida cae como error de ruteo y **mata el
+                // mainloop** — Java no llegaba ni a inicializar.
+                //
+                // Una notificación no espera respuesta: ignorar una que no se entiende
+                // es lo que el protocolo pide, no una concesión.
+                //
+                // **Pero esas dos justamente no se ignoran**: son las únicas que dicen
+                // cuándo el servidor terminó de indexar, y sin ellas un vacío mientras
+                // indexa es indistinguible de "no hay". Van acá y no en un
+                // `.notification::<T>` porque no son del protocolo: no hay tipo en
+                // `lsp_types` que las nombre, y despacharlas por string es lo que son.
+                .unhandled_notification(move |_, n: async_lsp::AnyNotification| {
+                    if let Some(r) = readiness_from(&n.method, &n.params) {
+                        readiness.set(r);
+                    }
+                    ControlFlow::Continue(())
+                })
                 // Server→client requests: must respond or async-lsp closes the connection
                 .request::<request::RegisterCapability, _>(|_, _| async { Ok(()) })
                 .request::<request::UnregisterCapability, _>(|_, _| async { Ok(()) })
                 .request::<request::WorkspaceConfiguration, _>(|_, _| async {
                     Ok::<Vec<serde_json::Value>, _>(vec![])
                 })
-                .request::<request::WorkDoneProgressCreate, _>(|_, _| async { Ok(()) });
+                .request::<request::WorkDoneProgressCreate, _>(|_, _| async { Ok(()) })
+                // Con una request es al revés: ignorarla **cuelga al servidor**, que
+                // se queda esperando. Se contesta un error y la conexión sigue.
+                .unhandled_request(|_, req: async_lsp::AnyRequest| async move {
+                    Err(async_lsp::ResponseError::new(
+                        async_lsp::ErrorCode::METHOD_NOT_FOUND,
+                        format!("lspd no implementa `{}`", req.method),
+                    ))
+                });
             tower::ServiceBuilder::new().service(router)
         });
 
         // Use tokio::process and bridge to futures_io via tokio_util::compat
         let mut child = tokio::process::Command::new(&exe)
+            // **El servidor se arranca parado en el workspace, no donde esté el
+            // daemon.** `workspace_folders` en el `initialize` no alcanza: el
+            // launcher de `jdtls` deriva su `-data` de `basename(getcwd())` antes de
+            // que LSP exista, así que con el cwd del daemon indexa un proyecto que
+            // no es —y dos workspaces con el mismo nombre de directorio comparten
+            // datos—. Es lo que hacía que `definitions` devolviera `[]` con el
+            // servidor ya listo.
+            //
+            // Y no es sólo de jdtls: el cwd de un proceso hijo que hereda el de
+            // quien lo lanzó es un dato que nadie eligió. Acá sí se elige.
+            .current_dir(workspace)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
@@ -75,7 +153,24 @@ impl LspClient {
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_default(),
             }]),
-            capabilities: ClientCapabilities::default(),
+            // **`serverStatusNotification` hay que pedirlo.** rust-analyzer no manda
+            // `experimental/serverStatus` a un cliente que no lo declara, y sin esa
+            // notificación su readiness no se puede saber: se quedaría en `Indexing`
+            // para siempre y ninguna pregunta se contestaría nunca.
+            //
+            // `jdtls` no necesita nada: `language/status` la manda igual.
+            // **Lo que este servidor en particular necesita oír.** `jdtls` lee sus
+            // raíces de acá y no del `workspace_folders` de arriba: sin esto no
+            // importa el proyecto, cae a su proyecto invisible y contesta `[]` con el
+            // servidor en `READY`. Ver `concepts/language-servers.md` § "Y la tabla
+            // tiene una columna más".
+            initialization_options: lang.initialization_options(workspace),
+            capabilities: ClientCapabilities {
+                experimental: Some(serde_json::json!({
+                    "serverStatusNotification": true,
+                })),
+                ..ClientCapabilities::default()
+            },
             ..Default::default()
         })
         .await
@@ -92,6 +187,7 @@ impl LspClient {
             lang,
             queries: AtomicU64::new(0),
             workspace: workspace.to_path_buf(),
+            readiness,
         }))
     }
 
@@ -377,4 +473,67 @@ fn extract_name(text: &str) -> String {
         .unwrap_or("unknown")
         .trim_end_matches('(')
         .to_string()
+}
+
+#[cfg(test)]
+mod readiness_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn rust_analyzer_dice_listo_con_quiescent() {
+        assert_eq!(readiness_from("experimental/serverStatus", &json!({"quiescent": true})),
+                   Some(Readiness::Ready));
+        assert_eq!(readiness_from("experimental/serverStatus", &json!({"quiescent": false})),
+                   Some(Readiness::Indexing));
+    }
+
+    /// `health` habla de errores del proyecto, no de si puede contestar: un workspace
+    /// que no compila igual resuelve tipos.
+    #[test]
+    fn el_health_de_rust_analyzer_no_es_readiness() {
+        assert_eq!(readiness_from("experimental/serverStatus",
+                                  &json!({"quiescent": true, "health": "error"})),
+                   Some(Readiness::Ready));
+    }
+
+    /// `Started` sale antes de que el classpath esté armado, y es el que hacía que un
+    /// `definitions` pareciera contestado.
+    #[test]
+    fn jdtls_solo_esta_listo_en_service_ready() {
+        assert_eq!(readiness_from("language/status", &json!({"type": "ServiceReady"})),
+                   Some(Readiness::Ready));
+        assert_eq!(readiness_from("language/status", &json!({"type": "Started"})),
+                   Some(Readiness::Indexing));
+        assert_eq!(readiness_from("language/status", &json!({"type": "Starting"})),
+                   Some(Readiness::Indexing));
+    }
+
+    /// Casi todas las notificaciones no hablan de esto, y una que no la entendemos no
+    /// puede mover el estado.
+    #[test]
+    fn cualquier_otra_notificacion_no_dice_nada() {
+        assert_eq!(readiness_from("window/logMessage", &json!({"type": 3})), None);
+        assert_eq!(readiness_from("$/progress", &json!({})), None);
+        // Y una con el método correcto pero sin el campo tampoco inventa un estado.
+        assert_eq!(readiness_from("experimental/serverStatus", &json!({})), None);
+        assert_eq!(readiness_from("language/status", &json!({})), None);
+    }
+
+    /// El que avisa nace `Indexing`; el que no avisa nace `Running` y se queda ahí.
+    #[test]
+    fn el_estado_inicial_sale_de_si_el_servidor_avisa() {
+        assert_eq!(Readiness::initial(Language::Rust),       Readiness::Indexing);
+        assert_eq!(Readiness::initial(Language::Java),       Readiness::Indexing);
+        assert_eq!(Readiness::initial(Language::TypeScript), Readiness::Running);
+        assert_eq!(Readiness::initial(Language::Python),     Readiness::Running);
+    }
+
+    #[test]
+    fn la_celda_arranca_en_el_inicial_y_sube() {
+        let c = ReadinessCell::new(Language::Rust);
+        assert_eq!(c.get(), Readiness::Indexing);
+        c.set(Readiness::Ready);
+        assert_eq!(c.get(), Readiness::Ready);
+    }
 }

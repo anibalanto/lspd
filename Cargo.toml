@@ -4,3 +4,7 @@ members = [
     "crates/lspd-client",
 ]
 resolver = "2"
+
+# Una sola fuente de verdad: cada crate la hereda con `license.workspace = true`.
+[workspace.package]
+license = "MIT OR Apache-2.0"

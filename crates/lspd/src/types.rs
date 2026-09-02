@@ -84,6 +84,16 @@ impl RpcResponse {
         Self::err(id, -32603, msg)
     }
 
+    /// El language server está `INDEXING`: todavía no puede contestar.
+    ///
+    /// **Código propio y no `server_error`**, porque no es una falla: dice *"volvé a
+    /// preguntar"*, y `status` dice cuándo. Mezclarlo con un servidor roto haría
+    /// indistinguibles *"todavía no sé"* y *"no puedo"*, que es la misma confusión
+    /// que este código existe para cerrar, corrida un casillero.
+    pub fn not_ready(id: serde_json::Value, msg: String) -> Self {
+        Self::err(id, -32001, msg)
+    }
+
     fn err(id: serde_json::Value, code: i32, message: String) -> Self {
         Self { jsonrpc: "2.0".into(), id, result: None, error: Some(RpcError { code, message }) }
     }

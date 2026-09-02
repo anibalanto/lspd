@@ -139,6 +139,11 @@ async fn dispatch(
             };
             let resp = match manager.$call(&p.file, p.line, p.col).await {
                 Ok(v)  => RpcResponse::ok(id, serde_json::json!(v)),
+                // **`-32001` se separa antes de caer en el error genérico.** Un
+                // servidor que todavía indexa no falló, y quien pregunta necesita
+                // poder distinguirlo para no leer el vacío como "no hay".
+                Err(e) if e.downcast_ref::<crate::lsp_manager::NotReady>().is_some() =>
+                    RpcResponse::not_ready(id, e.to_string()),
                 Err(e) => RpcResponse::server_error(id, e.to_string()),
             };
             (resp, false)
