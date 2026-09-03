@@ -43,8 +43,17 @@ fn readiness_from(method: &str, params: &serde_json::Value) -> Option<Readiness>
 }
 
 pub struct LspClient {
-    // ServerSocket requires &mut self → protect with Mutex for shared async access
-    server:      Mutex<async_lsp::ServerSocket>,
+    /// **Clonar, no serializar.** Los métodos del trait `LanguageServer` toman
+    /// `&mut self`, y la respuesta a eso sobre un tipo clonable es clonar: un
+    /// `ServerSocket` es un `mpsc::UnboundedSender` adentro, así que la copia es
+    /// barata y da el `&mut` local sin quitárselo a nadie.
+    ///
+    /// Un `Mutex` acá serializaba la operación entera —mandar la pregunta **y
+    /// esperar la respuesta**—, que es lo que apagaba el solapamiento que el `id`
+    /// de JSON-RPC existe para permitir. Serializar es la respuesta a *"este
+    /// recurso es único"*, y el recurso único no es este handle sino el socket, del
+    /// que ya se ocupa el mainloop del otro lado del canal.
+    server:      async_lsp::ServerSocket,
     /// **El proceso es de este cliente**, y por eso el `Child` vive acá y no adentro
     /// de la task del mainloop.
     ///
@@ -193,7 +202,7 @@ impl LspClient {
             .map_err(|e| anyhow::anyhow!("LSP initialized: {e:?}"))?;
 
         Ok(Arc::new(Self {
-            server: Mutex::new(server),
+            server,
             child: Mutex::new(child),
             task,
             lang,
@@ -207,21 +216,12 @@ impl LspClient {
         self.queries.fetch_add(1, Ordering::Relaxed);
 
         let uri = self.file_url(file)?;
-        let mut server = self.server.lock().await;
-
-        // Ensure the file is loaded into the LSP's VFS before querying
-        let content = std::fs::read_to_string(file)
-            .map_err(|e| anyhow::anyhow!("read {}: {e}", file.display()))?;
-        server
-            .did_open(DidOpenTextDocumentParams {
-                text_document: TextDocumentItem {
-                    uri: uri.clone(),
-                    language_id: lang_id(file).to_string(),
-                    version: 0,
-                    text: content,
-                },
-            })
-            .map_err(|e| anyhow::anyhow!("didOpen: {e:?}"))?;
+        // **Sin `did_open`.** El servidor corre en esta máquina, arrancado parado en
+        // el workspace y con sus raíces declaradas: ya puede abrir el archivo solo.
+        // `did_open` existe en LSP porque un editor tiene buffers sin guardar, y acá
+        // no hay ninguno — el disco es la fuente de verdad de las dos puntas, así que
+        // reenviarle el contenido no sincronizaba nada.
+        let mut server = self.server.clone();
 
         let items = server
             .prepare_call_hierarchy(CallHierarchyPrepareParams {
@@ -272,20 +272,7 @@ impl LspClient {
         self.queries.fetch_add(1, Ordering::Relaxed);
 
         let uri = self.file_url(file)?;
-        let mut server = self.server.lock().await;
-
-        let content = std::fs::read_to_string(file)
-            .map_err(|e| anyhow::anyhow!("read {}: {e}", file.display()))?;
-        server
-            .did_open(DidOpenTextDocumentParams {
-                text_document: TextDocumentItem {
-                    uri: uri.clone(),
-                    language_id: lang_id(file).to_string(),
-                    version: 0,
-                    text: content,
-                },
-            })
-            .map_err(|e| anyhow::anyhow!("didOpen: {e:?}"))?;
+        let mut server = self.server.clone();
 
         let items = server
             .prepare_call_hierarchy(CallHierarchyPrepareParams {
@@ -336,20 +323,7 @@ impl LspClient {
         self.queries.fetch_add(1, Ordering::Relaxed);
 
         let uri = self.file_url(file)?;
-        let mut server = self.server.lock().await;
-
-        let content = std::fs::read_to_string(file)
-            .map_err(|e| anyhow::anyhow!("read {}: {e}", file.display()))?;
-        server
-            .did_open(DidOpenTextDocumentParams {
-                text_document: TextDocumentItem {
-                    uri: uri.clone(),
-                    language_id: lang_id(file).to_string(),
-                    version: 0,
-                    text: content,
-                },
-            })
-            .map_err(|e| anyhow::anyhow!("didOpen: {e:?}"))?;
+        let mut server = self.server.clone();
 
         let hover = server
             .hover(HoverParams {
@@ -380,20 +354,7 @@ impl LspClient {
         self.queries.fetch_add(1, Ordering::Relaxed);
 
         let uri = self.file_url(file)?;
-        let mut server = self.server.lock().await;
-
-        let content = std::fs::read_to_string(file)
-            .map_err(|e| anyhow::anyhow!("read {}: {e}", file.display()))?;
-        server
-            .did_open(DidOpenTextDocumentParams {
-                text_document: TextDocumentItem {
-                    uri: uri.clone(),
-                    language_id: lang_id(file).to_string(),
-                    version: 0,
-                    text: content,
-                },
-            })
-            .map_err(|e| anyhow::anyhow!("didOpen: {e:?}"))?;
+        let mut server = self.server.clone();
 
         let resp = server
             .definition(GotoDefinitionParams {
@@ -433,7 +394,7 @@ impl LspClient {
     }
 
     pub async fn shutdown(&self) {
-        let mut server = self.server.lock().await;
+        let mut server = self.server.clone();
         let _ = server.shutdown(()).await;
         let _ = server.exit(());
     }
@@ -475,17 +436,6 @@ impl Drop for LspClient {
         if let Ok(mut child) = self.child.try_lock() {
             let _ = child.start_kill();
         }
-    }
-}
-
-fn lang_id(file: &Path) -> &'static str {
-    match file.extension().and_then(|e| e.to_str()).unwrap_or("") {
-        "rs"           => "rust",
-        "ts" | "tsx"   => "typescript",
-        "js" | "jsx"   => "javascript",
-        "py"           => "python",
-        "java"         => "java",
-        _              => "plaintext",
     }
 }
 
