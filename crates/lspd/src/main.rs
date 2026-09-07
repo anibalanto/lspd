@@ -42,8 +42,10 @@ fn main() -> anyhow::Result<()> {
         // un consumidor, y lo que `start` hace es exactamente esto en background.
         None            => run(args.workspace),
         Some(Cmd::Start)  => start(&args.workspace),
-        Some(Cmd::Stop)   => stop(),
-        Some(Cmd::Status) => status(),
+        // **Con una puerta por workspace, "el daemon" es ambiguo.** Los dos
+        // toman el suyo: preguntar por "el" daemon dejaria de tener sentido.
+        Some(Cmd::Stop)   => stop(&args.workspace),
+        Some(Cmd::Status) => status(&args.workspace),
     }
 }
 
@@ -53,10 +55,10 @@ async fn run(workspace: PathBuf) -> anyhow::Result<()> {
 
     let dir = lspd_client::dir();
     std::fs::create_dir_all(&dir)?;
-    std::fs::write(lspd_client::pid_path(), std::process::id().to_string())?;
+    std::fs::write(lspd_client::pid_path(&workspace), std::process::id().to_string())?;
 
-    let endpoint = lspd_client::endpoint();
-    let manager  = lsp_manager::LspManager::new(workspace);
+    let endpoint = lspd_client::endpoint(&workspace);
+    let manager  = lsp_manager::LspManager::new(workspace.clone());
     let shutdown = Arc::new(Notify::new());
 
     let result = tokio::select! {
@@ -67,39 +69,43 @@ async fn run(workspace: PathBuf) -> anyhow::Result<()> {
     manager.shutdown().await;
     // Un named pipe se va con el proceso; un socket Unix queda.
     if let Some(path) = endpoint.path() { let _ = std::fs::remove_file(path); }
-    let _ = std::fs::remove_file(lspd_client::pid_path());
+    let _ = std::fs::remove_file(lspd_client::pid_path(&workspace));
 
     result
 }
 
 fn start(workspace: &std::path::Path) -> anyhow::Result<()> {
-    if lspd_client::responds() {
-        eprintln!("el daemon ya está corriendo  pid={}", lspd_client::pid());
+    if lspd_client::responds(workspace) {
+        eprintln!("el daemon de este workspace ya está corriendo  pid={}",
+            lspd_client::pid(workspace));
         std::process::exit(1);
     }
     let pid = lspd_client::spawn(workspace)?;
-    println!("lspd started  pid={pid}  endpoint={}", lspd_client::endpoint());
+    println!("lspd started  pid={pid}  endpoint={}", lspd_client::endpoint(workspace));
     Ok(())
 }
 
-fn stop() -> anyhow::Result<()> {
-    if !lspd_client::responds() {
-        eprintln!("el daemon no está corriendo");
+fn stop(workspace: &std::path::Path) -> anyhow::Result<()> {
+    if !lspd_client::responds(workspace) {
+        // **Dice de cuál**, y no "el daemon": con una puerta por workspace,
+        // que no haya uno acá no dice nada de los otros.
+        eprintln!("no hay daemon en {}", lspd_client::endpoint(workspace));
         std::process::exit(1);
     }
-    lspd_client::rpc("shutdown", serde_json::json!({}))?;
+    lspd_client::rpc(workspace, "shutdown", serde_json::json!({}))?;
     println!("lspd stopped");
     Ok(())
 }
 
-fn status() -> anyhow::Result<()> {
-    if !lspd_client::responds() {
-        eprintln!("el daemon no está corriendo");
+fn status(workspace: &std::path::Path) -> anyhow::Result<()> {
+    if !lspd_client::responds(workspace) {
+        eprintln!("no hay daemon en {}", lspd_client::endpoint(workspace));
         std::process::exit(1);
     }
-    println!("lspd  pid={}  endpoint={}", lspd_client::pid(), lspd_client::endpoint());
+    println!("lspd  pid={}  endpoint={}",
+        lspd_client::pid(workspace), lspd_client::endpoint(workspace));
 
-    let servers = lspd_client::rpc("status", serde_json::json!({}))?;
+    let servers = lspd_client::rpc(workspace, "status", serde_json::json!({}))?;
     println!("\nlanguage servers:");
     match servers.as_array() {
         Some(list) if !list.is_empty() => {
