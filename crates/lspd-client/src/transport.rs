@@ -43,23 +43,63 @@ impl Endpoint {
     }
 }
 
+/// El nombre de la puerta de este workspace.
+///
+/// **El basename para leerlo, un hash corto para distinguirlo.** El path no
+/// puede ir tal cual: `sun_path` son 108 bytes en Linux, y un workspace real ya
+/// son 64 — con `~/.lspd/` y `.sock` queda en ~90, y uno mas profundo lo rompe.
+///
+/// El hash sale del path **canonico**, asi que dos rutas que apuntan al mismo
+/// lugar dan la misma puerta: un symlink no parte el daemon en dos.
+///
+/// Y el basename no es decoracion: sin el, `~/.lspd/` es un directorio de
+/// hashes, y **un directorio de hashes no se puede mirar**.
+pub fn nombre(workspace: &std::path::Path) -> String {
+    let canonico = workspace.canonicalize().unwrap_or_else(|_| workspace.to_path_buf());
+    let base: String = canonico
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "raiz".into())
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .collect();
+    format!("{base}-{:x}", huella(canonico.to_string_lossy().as_bytes()))
+}
+
+/// Una huella de 24 bits del path, en hexa.
+///
+/// **No hace falta que sea criptografica**: lo que decide es que dos workspaces
+/// distintos den nombres distintos, y una colision aca no filtra nada — hace
+/// que dos proyectos compartan daemon, que es exactamente lo que pasaba antes
+/// con todos. Con esto se necesita mala suerte para volver al caso viejo, y no
+/// se paga una dependencia por eso.
+fn huella(bytes: &[u8]) -> u32 {
+    // FNV-1a, truncado. Cabe en seis dígitos hexa y se lee.
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in bytes {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    (h & 0xff_ffff) as u32
+}
+
 #[cfg(unix)]
-pub fn endpoint() -> Endpoint {
-    Endpoint::Socket(crate::dir().join("daemon.sock"))
+pub fn endpoint(workspace: &std::path::Path) -> Endpoint {
+    Endpoint::Socket(crate::dir().join(format!("{}.sock", nombre(workspace))))
 }
 
 #[cfg(windows)]
-pub fn endpoint() -> Endpoint {
-    Endpoint::Pipe(r"\\.\pipe\lspd".to_string())
+pub fn endpoint(workspace: &std::path::Path) -> Endpoint {
+    Endpoint::Pipe(format!(r"\\.\pipe\lspd-{}", nombre(workspace)))
 }
 
 /// Un stream conectado al daemon.
 pub trait Stream: Read + Write + Send {}
 impl<T: Read + Write + Send> Stream for T {}
 
-/// Al daemon de este sistema.
-pub fn connect() -> Result<Box<dyn Stream>> {
-    connect_to(&endpoint())
+/// Al daemon **de este workspace**.
+pub fn connect(workspace: &std::path::Path) -> Result<Box<dyn Stream>> {
+    connect_to(&endpoint(workspace))
 }
 
 /// A un endpoint dado.
@@ -98,16 +138,48 @@ mod tests {
     /// del que llama, sin nada en el medio.
     #[test]
     fn the_endpoint_is_derived() {
-        let e = endpoint();
-        assert_eq!(e, endpoint(), "dos llamadas dan lo mismo");
+        let w = std::path::Path::new("/tmp");
+        let e = endpoint(w);
+        assert_eq!(e, endpoint(w), "dos llamadas dan lo mismo");
         assert!(!e.to_string().is_empty());
+    }
+
+    /// **Dos workspaces, dos puertas.** Es lo que la puerta unica no permitia,
+    /// y de ahi salia que un daemon ajeno contestara una negacion en vez de un
+    /// "no se".
+    #[test]
+    fn two_workspaces_get_two_doors() {
+        let a = endpoint(std::path::Path::new("/tmp"));
+        let b = endpoint(std::path::Path::new("/usr"));
+        assert_ne!(a, b, "dos workspaces comparten puerta");
+    }
+
+    /// Y el mismo workspace por dos rutas —un symlink— da **una** puerta: el
+    /// nombre sale del path canonico, asi que el daemon no se parte en dos.
+    #[test]
+    fn the_same_workspace_by_another_route_is_one_door() {
+        let dir = std::env::temp_dir();
+        let raro = dir.join("..").join(dir.file_name().unwrap());
+        assert_eq!(endpoint(&dir), endpoint(&raro), "el path no se canonicalizo");
+    }
+
+    /// El nombre se puede leer: `ls ~/.lspd/` tiene que decir de que proyecto es
+    /// cada puerta, y un directorio de hashes no se puede mirar.
+    #[test]
+    fn the_name_carries_the_basename() {
+        let n = nombre(std::path::Path::new("/tmp"));
+        assert!(n.starts_with("tmp-"), "{n}");
     }
 
     #[cfg(unix)]
     #[test]
     fn on_unix_it_is_a_socket_under_the_lspd_dir() {
-        let Endpoint::Socket(p) = endpoint() else { panic!("en unix es un socket") };
-        assert!(p.ends_with(".lspd/daemon.sock"), "{}", p.display());
+        let Endpoint::Socket(p) =
+            endpoint(std::path::Path::new("/tmp")) else { panic!("en unix es un socket") };
+        assert!(p.starts_with(crate::dir()), "{}", p.display());
+        assert_eq!(p.extension().and_then(|e| e.to_str()), Some("sock"), "{}", p.display());
+        // Y entra en `sun_path`, que son 108 bytes en Linux.
+        assert!(p.to_string_lossy().len() < 108, "no entra en sun_path: {}", p.display());
         assert!(e_path_is_file_like(&p));
     }
 

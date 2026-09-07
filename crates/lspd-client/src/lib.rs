@@ -26,21 +26,26 @@ pub fn dir() -> PathBuf {
     PathBuf::from(home).join(".lspd")
 }
 
-/// Dónde escucha el daemon en este sistema. Ver `concepts/transport.md`.
-pub fn endpoint() -> Endpoint {
-    transport::endpoint()
+/// Dónde escucha el daemon **de este workspace**. Ver `concepts/transport.md`.
+///
+/// **El workspace lo pasa quien llama**, y no se deriva acá: es el único que lo
+/// sabe —es la raíz que le va a preguntar— y el `cwd` del que pregunta no tiene
+/// por qué ser su workspace. Derivarlo adentro sería adivinar desde dónde se
+/// invocó, que es el mismo error que la puerta por workspace viene a borrar.
+pub fn endpoint(workspace: &std::path::Path) -> Endpoint {
+    transport::endpoint(workspace)
 }
 
 /// El archivo con el pid del daemon.
 ///
 /// **No es cómo se sabe si está vivo** — para eso está [`responds`]. Es para poder
 /// decir *qué* proceso es cuando ya se sabe que sí.
-pub fn pid_path() -> PathBuf {
-    dir().join("daemon.pid")
+pub fn pid_path(workspace: &std::path::Path) -> PathBuf {
+    dir().join(format!("{}.pid", transport::nombre(workspace)))
 }
 
-pub fn pid() -> u32 {
-    std::fs::read_to_string(pid_path())
+pub fn pid(workspace: &std::path::Path) -> u32 {
+    std::fs::read_to_string(pid_path(workspace))
         .ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0)
 }
 
@@ -86,8 +91,12 @@ pub const TIMEOUT: Duration = Duration::from_secs(5);
 /// Un `Err` acá es **o** que no se pudo llegar al daemon **o** que el daemon
 /// contestó con `error`. Las dos son fallas de la consulta desde donde está parado
 /// quien pregunta; distinguirlas es [`responds`], que es una pregunta aparte.
-pub fn rpc(method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
-    rpc_at(&endpoint(), method, params)
+pub fn rpc(
+    workspace: &std::path::Path,
+    method: &str,
+    params: serde_json::Value,
+) -> Result<serde_json::Value> {
+    rpc_at(&endpoint(workspace), method, params)
 }
 
 /// La misma pregunta, contra un endpoint dado. Ver [`connect_to`].
@@ -125,8 +134,8 @@ pub fn rpc_at(ep: &Endpoint, method: &str, params: serde_json::Value) -> Result<
 /// listos**. Eso es del protocolo y no un descuido: quien pregunte tiene que
 /// distinguir *"todavía no sé"* de *"no hay"*, y juntarlas en este booleano sería
 /// decidir por él.
-pub fn responds() -> bool {
-    rpc("ping", serde_json::json!({}))
+pub fn responds(workspace: &std::path::Path) -> bool {
+    rpc(workspace, "ping", serde_json::json!({}))
         .map(|v| v == serde_json::json!("pong"))
         .unwrap_or(false)
 }
@@ -161,7 +170,7 @@ pub fn spawn(workspace: &std::path::Path) -> Result<u32> {
     // "arrancado" sobre un proceso que murió en el handshake es peor que esperar.
     for _ in 0..50 {
         std::thread::sleep(Duration::from_millis(100));
-        if responds() { return Ok(child.id()); }
+        if responds(workspace) { return Ok(child.id()); }
     }
     anyhow::bail!("el daemon no respondió en 5s")
 }
