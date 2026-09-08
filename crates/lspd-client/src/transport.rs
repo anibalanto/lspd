@@ -45,26 +45,65 @@ impl Endpoint {
 
 /// El nombre de la puerta de este workspace.
 ///
-/// **El basename para leerlo, un hash corto para distinguirlo.** El path no
-/// puede ir tal cual: `sun_path` son 108 bytes en Linux, y un workspace real ya
-/// son 64 — con `~/.lspd/` y `.sock` queda en ~90, y uno mas profundo lo rompe.
+/// **Un nombre legible para leerlo, un hash corto para distinguirlo.** El path
+/// no puede ir tal cual: `sun_path` son 108 bytes en Linux, y un workspace real
+/// ya son 64 — con `~/.lspd/` y `.sock` queda en ~90, y uno mas profundo lo
+/// rompe.
 ///
 /// El hash sale del path **canonico**, asi que dos rutas que apuntan al mismo
 /// lugar dan la misma puerta: un symlink no parte el daemon en dos.
 ///
-/// Y el basename no es decoracion: sin el, `~/.lspd/` es un directorio de
+/// Y la parte legible no es decoracion: sin ella `~/.lspd/` es un directorio de
 /// hashes, y **un directorio de hashes no se puede mirar**.
-pub fn nombre(workspace: &std::path::Path) -> String {
-    let canonico = workspace.canonicalize().unwrap_or_else(|_| workspace.to_path_buf());
-    let base: String = canonico
-        .file_name()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| "raiz".into())
+pub fn name(workspace: &std::path::Path) -> String {
+    let canonical = workspace.canonicalize().unwrap_or_else(|_| workspace.to_path_buf());
+    format!(
+        "{}-{:x}",
+        label(&canonical),
+        fingerprint(canonical.to_string_lossy().as_bytes())
+    )
+}
+
+/// Lo que hace mirable a `~/.lspd/`: **los dos ultimos segmentos que no esten
+/// ocultos.**
+///
+/// El basename solo no alcanza. Medido el 2026-09-08: cuatro de las cinco
+/// puertas de la maquina se llamaban `impl-<hash>`, porque el basename de toda
+/// capa de stratum es literalmente `impl`. Saltear los ocultos saca `.stratum`
+/// del medio y deja pegados los dos segmentos que dicen algo — el subsistema y
+/// la capa: `worklist-impl`.
+///
+/// **No hay lista de nombres genericos que saltear.** Era la otra salida —tratar
+/// `impl` como un segmento que no informa— y `impl` es vocabulario de stratum,
+/// que este transporte no tiene por que conocer. Un segmento oculto, en cambio,
+/// es una convencion del sistema de archivos.
+fn label(canonical: &std::path::Path) -> String {
+    use std::path::Component;
+    let visible: Vec<String> = canonical
+        .components()
+        .filter_map(|c| match c {
+            Component::Normal(s) => Some(s.to_string_lossy().to_string()),
+            _ => None,
+        })
+        .filter(|s| !s.starts_with('.'))
+        .collect();
+    let mut label: String = visible[visible.len().saturating_sub(2)..]
+        .join("-")
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
         .collect();
-    format!("{base}-{:x}", huella(canonico.to_string_lossy().as_bytes()))
+    if label.is_empty() {
+        label.push_str("raiz");
+    }
+    // El corte es lo que vuelve al peor caso un numero y no una esperanza: 40
+    // mas el hash y `.sock` son 52, contra los 108 de `sun_path`. Y despues del
+    // mapeo de arriba todo char es ASCII, asi que cortar no parte ninguno.
+    label.truncate(LABEL_MAX);
+    label
 }
+
+/// Cuanto ocupa como maximo la parte legible del nombre.
+const LABEL_MAX: usize = 40;
 
 /// Una huella de 24 bits del path, en hexa.
 ///
@@ -73,7 +112,7 @@ pub fn nombre(workspace: &std::path::Path) -> String {
 /// que dos proyectos compartan daemon, que es exactamente lo que pasaba antes
 /// con todos. Con esto se necesita mala suerte para volver al caso viejo, y no
 /// se paga una dependencia por eso.
-fn huella(bytes: &[u8]) -> u32 {
+fn fingerprint(bytes: &[u8]) -> u32 {
     // FNV-1a, truncado. Cabe en seis dígitos hexa y se lee.
     let mut h: u64 = 0xcbf29ce484222325;
     for b in bytes {
@@ -85,12 +124,12 @@ fn huella(bytes: &[u8]) -> u32 {
 
 #[cfg(unix)]
 pub fn endpoint(workspace: &std::path::Path) -> Endpoint {
-    Endpoint::Socket(crate::dir().join(format!("{}.sock", nombre(workspace))))
+    Endpoint::Socket(crate::dir().join(format!("{}.sock", name(workspace))))
 }
 
 #[cfg(windows)]
 pub fn endpoint(workspace: &std::path::Path) -> Endpoint {
-    Endpoint::Pipe(format!(r"\\.\pipe\lspd-{}", nombre(workspace)))
+    Endpoint::Pipe(format!(r"\\.\pipe\lspd-{}", name(workspace)))
 }
 
 /// Un stream conectado al daemon.
@@ -166,9 +205,40 @@ mod tests {
     /// El nombre se puede leer: `ls ~/.lspd/` tiene que decir de que proyecto es
     /// cada puerta, y un directorio de hashes no se puede mirar.
     #[test]
-    fn the_name_carries_the_basename() {
-        let n = nombre(std::path::Path::new("/tmp"));
+    fn the_name_carries_a_readable_label() {
+        let n = name(std::path::Path::new("/tmp"));
         assert!(n.starts_with("tmp-"), "{n}");
+    }
+
+    /// **El basename solo no alcanza.** Toda capa de stratum se llama `impl`, asi
+    /// que cuatro de las cinco puertas de la maquina decian `impl-<hash>` — que es
+    /// no decir nada. El nombre son los dos ultimos segmentos visibles, y saltear
+    /// los ocultos es lo que saca `.stratum` del medio.
+    #[test]
+    fn the_label_skips_hidden_segments_and_keeps_two() {
+        let n = name(std::path::Path::new(
+            "/home/x/Workspace/accreta/subsystems/worklist/.stratum/impl",
+        ));
+        assert!(n.starts_with("worklist-impl-"), "{n}");
+    }
+
+    /// Dos capas del mismo proyecto no comparten nombre legible, que es
+    /// exactamente lo que el basename solo no distinguia.
+    #[test]
+    fn two_layers_of_the_same_project_read_apart() {
+        let a = name(std::path::Path::new("/p/subsystems/worklist/.stratum/impl"));
+        let b = name(std::path::Path::new("/p/subsystems/bilinker/.stratum/impl"));
+        assert!(a.starts_with("worklist-impl-"), "{a}");
+        assert!(b.starts_with("bilinker-impl-"), "{b}");
+    }
+
+    /// Y el peor caso es un numero: el nombre legible se corta, asi que un path
+    /// arbitrariamente largo o profundo sigue entrando en `sun_path`.
+    #[test]
+    fn a_long_workspace_still_fits_sun_path() {
+        let hondo: String = (0..40).map(|i| format!("/segmento-largisimo-{i}")).collect();
+        let n = name(std::path::Path::new(&hondo));
+        assert!(n.len() <= LABEL_MAX + 1 + 6, "{} chars: {n}", n.len());
     }
 
     #[cfg(unix)]
