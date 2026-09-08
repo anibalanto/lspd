@@ -41,7 +41,7 @@ pub fn endpoint(workspace: &std::path::Path) -> Endpoint {
 /// **No es cómo se sabe si está vivo** — para eso está [`responds`]. Es para poder
 /// decir *qué* proceso es cuando ya se sabe que sí.
 pub fn pid_path(workspace: &std::path::Path) -> PathBuf {
-    dir().join(format!("{}.pid", transport::nombre(workspace)))
+    dir().join(format!("{}.pid", transport::name(workspace)))
 }
 
 pub fn pid(workspace: &std::path::Path) -> u32 {
