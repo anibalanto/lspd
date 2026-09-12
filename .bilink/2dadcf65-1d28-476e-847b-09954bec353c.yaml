@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture cc4b4a10a11ef75a1d30275393b86d25
+    accepted:
+    - agree:
+      - anibal
+      link: capture cc4b4a10a11ef75a1d30275393b86d25
+      hash: 54e15cdb8ea7eb5c7ba7afe23b54812a0bd28f1ea2f356f16e630eb05f626809
     name: el-basename
   1:
     link: capture 30ff4cc9fe0978394dab539851cc996f
