@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 811b4346b3969f19be113b30e7c04578
+    accepted:
+    - agree:
+      - anibal
+      link: capture 811b4346b3969f19be113b30e7c04578
+      hash: 2376c7591c68be6b50c9d6dec18006f6f3fb1f770975c494d1a57cdd3d99c51e
     name: el-binario
   1:
     link: capture 810b455788c64c5ed8ae26d0d2fafa36
