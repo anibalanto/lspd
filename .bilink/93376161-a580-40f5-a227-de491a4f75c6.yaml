@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 7f4c307a87e55033a349a6d57cf6a91f
+    accepted:
+    - agree:
+      - anibal
+      link: capture 7f4c307a87e55033a349a6d57cf6a91f
+      hash: cb2db1fb7e788469572d2132fa6e94f007c2246b3e9e382904fe0cda0ea4b010
     name: no-una-pregunta-por-vez
   1:
     link: capture edd40c8da102112fa2125733432f1b74
