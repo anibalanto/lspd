@@ -10,4 +10,11 @@ endpoint:
     name: fila-stop
   1:
     link: capture fcf079299f562b8ca3286b0000920cd7
+    accepted:
+    - agree:
+      - anibal
+      link: capture fcf079299f562b8ca3286b0000920cd7
+      hash: 3bff6c9cd57d99c386b5f2358320c68b1bdd2715c6bbb2390930458b91a1e29a
+      hash_ast: a1a06a2e0eb1f3f97e41041f21278f6194bef0e41fac0c22800bda568813e2fa
+      n: declined
     name: stop
