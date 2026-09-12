@@ -10,4 +10,11 @@ endpoint:
     name: quien-calcula-el-workspace
   1:
     link: capture 186d0bb9bce9bd72a43deb6845ee9338
+    accepted:
+    - agree:
+      - anibal
+      link: capture 186d0bb9bce9bd72a43deb6845ee9338
+      hash: 5bfaec0dce925ec4d13345929d4bc51ae7d6d739833517c515ef10619a404c9a
+      hash_ast: d5dd1cb5e5a6a1954fa1478392d3ad2cde4bb0575ec24650bffe519173b63408
+      n: declined
     name: endpoint
