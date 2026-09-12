@@ -10,4 +10,11 @@ endpoint:
     name: hacia-abajo
   1:
     link: capture 197dfb13a820e277b030d2f16a243af8
+    accepted:
+    - agree:
+      - anibal
+      link: capture 197dfb13a820e277b030d2f16a243af8
+      hash: c0192f77f895b6818ae7cf181a9e2a85da3a2b0976aa22c955f477cdfc1ba3e4
+      hash_ast: 803aa87f1ff9a027acf30b89dd61ef8c80906da971955525db07854d288935f4
+      n: declined
     name: LspClient::callees
