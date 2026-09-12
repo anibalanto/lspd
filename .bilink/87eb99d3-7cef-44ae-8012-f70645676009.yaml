@@ -10,4 +10,11 @@ endpoint:
     name: el-nombre
   1:
     link: capture cb9f8b407d8bcfa564dbcef68bc44af4
+    accepted:
+    - agree:
+      - anibal
+      link: capture cb9f8b407d8bcfa564dbcef68bc44af4
+      hash: de0fd44caa191b369e709a7d6844ffebd849e3553a9b8f41490786aca4cc289e
+      hash_ast: ee871aabd71e610f00c37f79b576d46dc7fc325e7847754c95251415c7ddd7e5
+      n: declined
     name: transport::name
