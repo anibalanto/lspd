@@ -10,4 +10,11 @@ endpoint:
     name: la-tabla
   1:
     link: capture c7dec5c89c3526c8468c6da77880fd02
+    accepted:
+    - agree:
+      - anibal
+      link: capture c7dec5c89c3526c8468c6da77880fd02
+      hash: a5f910e66723578bf6653061786dbdd5e03a6d3fc7c4b3acbeaf9c2ae534476b
+      hash_ast: 3fd5d0ff53266bb7d84ea28044db89c80cf8834ec6f5844c1aafd97e0cf82ebc
+      n: declined
     name: Language::from_extension
