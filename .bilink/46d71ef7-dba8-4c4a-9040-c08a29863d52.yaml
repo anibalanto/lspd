@@ -10,4 +10,11 @@ endpoint:
     name: not-ready
   1:
     link: capture 8fa34f3df7d931d725b0c161ea11df97
+    accepted:
+    - agree:
+      - anibal
+      link: capture 8fa34f3df7d931d725b0c161ea11df97
+      hash: 75abf47423c7758cd8e54c1e24cd2173bb914ba9b84c8802d8b5aebdf432f470
+      hash_ast: 983c29693114b85abae46c7de250cc7748f343e8c763b2ffd23ea2706aa9e42d
+      n: declined
     name: ready_or_bail
