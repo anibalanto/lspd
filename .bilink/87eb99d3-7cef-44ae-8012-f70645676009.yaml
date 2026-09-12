@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture dc72694e5edbbcfaa117d00373403952
+    accepted:
+    - agree:
+      - anibal
+      link: capture dc72694e5edbbcfaa117d00373403952
+      hash: 3b8f536e4cd1aa8f38eda0670a0c975effa023bfa4895cbcb3475aa570298b17
     name: el-nombre
   1:
     link: capture cb9f8b407d8bcfa564dbcef68bc44af4
