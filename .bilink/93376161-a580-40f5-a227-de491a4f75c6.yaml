@@ -10,4 +10,10 @@ endpoint:
     name: no-una-pregunta-por-vez
   1:
     link: capture edd40c8da102112fa2125733432f1b74
+    accepted:
+    - agree:
+      - anibal
+      link: capture edd40c8da102112fa2125733432f1b74
+      hash: 5d369c9d5de7fcf9b71403597e613904ab6d7a08066fa635fa38aba5f92b7efd
+      hash_ast: bd04f487648260e96c265cd9d423e9d1b57a2ac39fb06cfe53cdbb9dc519ee7a
     name: LspClient
