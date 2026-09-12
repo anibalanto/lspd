@@ -10,4 +10,10 @@ endpoint:
     name: transporte
   1:
     link: capture 7a5319dd5b0c5810afba2b2890a18897
+    accepted:
+    - agree:
+      - anibal
+      link: capture 7a5319dd5b0c5810afba2b2890a18897
+      hash: 17d961005cbfd8887ac61eff4b68bd5d5a192d07a852c468d22180b035618634
+      hash_ast: b907bbf600409e22113b064f1022da4000d047fb1e9a4e3a43f23da825381568
     name: Endpoint
