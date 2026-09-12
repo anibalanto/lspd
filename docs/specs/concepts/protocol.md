@@ -1,5 +1,9 @@
 # El protocolo
 
+## El framing
+
+### JSON-RPC 2.0, con un objeto por línea
+
 JSON-RPC 2.0 con **framing newline-delimited**: cada mensaje es un objeto JSON en una línea, terminado en `\n`. Va sobre el [transporte](transport.md) que corresponda al sistema operativo, y no sabe cuál es.
 
 ```json
