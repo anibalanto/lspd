@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 756ddfe829fa2a34aec3e74b0b77b2ea
+    accepted:
+    - agree:
+      - anibal
+      link: capture 756ddfe829fa2a34aec3e74b0b77b2ea
+      hash: 02e432661315702cc84aeaa8f4272cca70dab258f7e22b55ad71c8dce815ca13
     name: protocolo
   1:
     link: capture 85c498e1cf7f8063a6c265e864e8c77c
