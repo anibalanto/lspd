@@ -10,4 +10,10 @@ endpoint:
     name: el-error
   1:
     link: capture 5b2928edddae3b3ef790c6d23338a09d
+    accepted:
+    - agree:
+      - anibal
+      link: capture 5b2928edddae3b3ef790c6d23338a09d
+      hash: fd10132d9e7c86c815b8482ee2c49f01ad1ffbf5427fc1bf4d450c50bffb23ce
+      hash_ast: 5a6e444dd81db57b9127e17e907419934f30cd35663be3e4d716fb574d23223d
     name: RpcError
