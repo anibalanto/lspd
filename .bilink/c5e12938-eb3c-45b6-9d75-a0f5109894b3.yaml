@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 85c4140556337b27503a488631aafac6
+    accepted:
+    - agree:
+      - anibal
+      link: capture 85c4140556337b27503a488631aafac6
+      hash: c80f3b1eb2794baa8426edd6a227a9403c1b4054757785c8a0d5c5ab0139ae0a
     name: el-framing
   1:
     link: capture 85c498e1cf7f8063a6c265e864e8c77c
