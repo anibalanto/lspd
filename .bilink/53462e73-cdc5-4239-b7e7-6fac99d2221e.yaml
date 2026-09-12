@@ -10,4 +10,11 @@ endpoint:
     name: los-metodos
   1:
     link: capture 8bd91791cb4bf4800ecbd718cf7b1884
+    accepted:
+    - agree:
+      - anibal
+      link: capture 8bd91791cb4bf4800ecbd718cf7b1884
+      hash: 9a98f0a9cb4df435692804f9727580bc5933d6388651741add583a6cab0baaa3
+      hash_ast: f67feacf3595e30ddaf6fac994a629c1f0d3a49c63eae1790977eb87b975b428
+      n: declined
     name: ipc::dispatch
