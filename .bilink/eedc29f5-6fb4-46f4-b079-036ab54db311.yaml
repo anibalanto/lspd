@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture a8c11c8f22851b4557c823c5349af990
+    accepted:
+    - agree:
+      - anibal
+      link: capture a8c11c8f22851b4557c823c5349af990
+      hash: dcd5880557b8101f34bb623a7a51f1167e0c280472d28fd918ec78e92bd14f32
     name: arrancarlo
   1:
     link: capture 68ec5345af10866f0a16e4392e28d670
