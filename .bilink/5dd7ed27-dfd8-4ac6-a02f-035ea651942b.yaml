@@ -10,4 +10,11 @@ endpoint:
     name: el-workspace-no-viaja
   1:
     link: capture 3dfb439ff26ae01e6753fb83e8c8279a
+    accepted:
+    - agree:
+      - anibal
+      link: capture 3dfb439ff26ae01e6753fb83e8c8279a
+      hash: 57767be893e0c1229913b0eaaa172d7d634e84a3f91dc38c67617deda04b8707
+      hash_ast: 3af3f91c0657128e6e1ec6e5647c0220fa4238501c57d2539d171d96875064ed
+      n: declined
     name: LspManager::new
