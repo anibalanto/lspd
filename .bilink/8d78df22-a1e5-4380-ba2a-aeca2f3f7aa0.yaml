@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture ff45851784163549f8541da45fd2d43c
+    accepted:
+    - agree:
+      - anibal
+      link: capture ff45851784163549f8541da45fd2d43c
+      hash: db2e87ca6e041004fbea285708c33474a2a5830f15c4b0857756d1409a9f6fcb
     name: corte-por-tiempo
   1:
     link: capture e48896dd6bf32e59bb0c5d15dde72392
