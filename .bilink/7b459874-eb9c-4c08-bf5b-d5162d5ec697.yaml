@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 38355c07d80d5387a3f21e3ad6903e1e
+    name: memoria-del-spawn
+  1:
+    link: capture 8854d7d6c05d405ee608ce72ebf289b7
+    name: spawn_args

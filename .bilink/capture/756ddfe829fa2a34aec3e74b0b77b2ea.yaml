@@ -1,0 +1,4 @@
+file: docs/specs/concepts/protocol.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "El protocolo"))) @target

@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture d3088abc9bbc9c74a95729c0cb15a03c
+    name: transporte
+  1:
+    link: capture 7a5319dd5b0c5810afba2b2890a18897
+    name: Endpoint

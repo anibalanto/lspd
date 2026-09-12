@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 93401ffe1674eb3eae2978c8f41b0439
+    name: comandos
+  1:
+    link: capture 9f0e88556f373fa5f949f72506f19e50
+    name: main

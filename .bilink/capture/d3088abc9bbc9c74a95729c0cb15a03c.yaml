@@ -1,0 +1,4 @@
+file: docs/specs/concepts/transport.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "El transporte"))) @target

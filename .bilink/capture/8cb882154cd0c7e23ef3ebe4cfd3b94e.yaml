@@ -1,0 +1,6 @@
+file: docs/specs/concepts/language-servers.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "La tabla"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "La tabla despacha por extensión a un ejecutable"))) @target)
