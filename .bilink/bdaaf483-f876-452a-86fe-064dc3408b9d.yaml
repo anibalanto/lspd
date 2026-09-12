@@ -10,4 +10,11 @@ endpoint:
     name: definitions
   1:
     link: capture b3c78ccde45ec0f0a5242337dec5c80d
+    accepted:
+    - agree:
+      - anibal
+      link: capture b3c78ccde45ec0f0a5242337dec5c80d
+      hash: 4d16487cb692863d8d3710b188063c56aa04d92fa677d3b1e268677ece552c0a
+      hash_ast: d31812e601c6eb7131e21941c5a93bd4ee47ed5ebf2cea61207cbf1dac39af6c
+      n: declined
     name: LspClient::definitions
