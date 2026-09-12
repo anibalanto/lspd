@@ -10,4 +10,11 @@ endpoint:
     name: language-servers
   1:
     link: capture 0875b638b4e0e6005b31656b134ed170
+    accepted:
+    - agree:
+      - anibal
+      link: capture 0875b638b4e0e6005b31656b134ed170
+      hash: ea564e292e677b1cc980495de2d207def3e8a28a4411cea31bd65b87ec3ee0b7
+      hash_ast: 2295419b2003fbb3c8f5c1722d93f9bc986e8eb949fc6edbfc8eb62960740325
+      n: declined
     name: LspClient::spawn
