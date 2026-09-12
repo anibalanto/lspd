@@ -10,4 +10,10 @@ endpoint:
     name: handshake-no-es-listo
   1:
     link: capture 381f5fc4660200464ca8d2e7aa02b694
+    accepted:
+    - agree:
+      - anibal
+      link: capture 381f5fc4660200464ca8d2e7aa02b694
+      hash: 91d61e006ac9e4f54f1022dcc1d7450d47cf6b15841fd5a4171c5f7570dfeea6
+      hash_ast: 8033103f48b3132325fdc1ffbb6de5a537a74dfef40e01edd4ee4e599c6b970b
     name: Readiness
