@@ -15,7 +15,7 @@
 
 **Agregar un lenguaje es agregar una entrada.** Es todo el conocimiento de lenguajes que hay acá, y es a propósito: cualquier cosa más grande que una tabla sería modelo propio, y este daemon no tiene modelo propio.
 
-Si el ejecutable no está en PATH, la respuesta es un error explícito y no un vacío: `LSP for rust not found: install rust-analyzer`. Un vacío se leería como *"no hay llamadas"*.
+Si ninguno de los candidatos está en PATH, la respuesta es un error explícito y no un vacío: `LSP for "rust-analyzer" not found: install one of ["rust-analyzer"]`. Un vacío se leería como *"no hay llamadas"*.
 
 ### Y la tabla tiene una columna más: qué pide cada servidor en el handshake
 
@@ -24,7 +24,7 @@ La tabla dice qué ejecutable buscar. **Lo que no dice, y hace falta, es qué ne
 | Servidor | Qué pide, y qué pasa sin eso |
 |---|---|
 | `rust-analyzer` | `experimental.serverStatusNotification` en las capabilities. Sin eso no avisa cuándo terminó de indexar |
-| `jdtls` | `initializationOptions.workspaceFolders`. **Sin eso no importa el proyecto**: cae a su *proyecto invisible*, se queda sin classpath, y resuelve `[]` con el servidor en `READY` |
+| `jdtls` | `initializationOptions.workspaceFolders`. **Sin eso no importa el proyecto**: cae a su *proyecto invisible*, se queda sin classpath, y resuelve `[]` con el servidor en `READY`. Y `extendedClientCapabilities` con `progressReportProvider` y `classFileContentsSupport` en `false`: sin declararlos pide progreso con requests que nadie implementa, y espera respuesta |
 
 **Sigue siendo una tabla, y por eso entra acá.** Es un dato por servidor —una constante, no una decisión—, y agregar un lenguaje sigue siendo agregar una fila. Lo que cambia es que la fila tiene dos casillas en vez de una.
 
@@ -151,11 +151,11 @@ Así que la readiness tiene **tres** valores y no dos, y el tercero es el honest
 
 ```
 ~/.lspd/
-  daemon.sock    ← el socket, en Unix: creado al arrancar, borrado al terminar
-  daemon.pid     ← el pid del proceso
+  accreta-impl-1c8540.sock    ← el socket, en Unix: creado al arrancar, borrado al terminar
+  accreta-impl-1c8540.pid     ← el pid del proceso
 ```
 
-En Windows el endpoint es un named pipe y no un archivo, así que sólo queda el `.pid`. Ver [transporte](transport.md).
+**Un archivo por workspace, con el nombre de su puerta**: los dos últimos segmentos visibles del path y un hash corto ([transporte](transport.md)). En Windows el endpoint es un named pipe y no un archivo, así que sólo queda el `.pid`.
 
 **Nada de esto es del proyecto.** El daemon no escribe en el árbol que indexa: arrancarlo desde un comando de sólo lectura es un efecto, y vale la pena que el efecto esté acotado a un directorio del usuario.
 

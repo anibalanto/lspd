@@ -16,8 +16,8 @@ lspd status
 lspd stop
 ```
 
-El endpoint se deriva y no se configura: `~/.lspd/daemon.sock` en Unix,
-`\\.\pipe\lspd` en Windows.
+El endpoint se deriva y no se configura, y hay uno por workspace:
+`~/.lspd/<nombre>-<hash>.sock` en Unix, `\\.\pipe\lspd-<nombre>-<hash>` en Windows.
 
 ## Lo que no es
 

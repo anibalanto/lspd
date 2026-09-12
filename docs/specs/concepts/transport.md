@@ -87,6 +87,12 @@ Named pipes en Windows y sockets Unix en el resto son **dos implementaciones del
 
 La frontera está donde tiene que estar: en obtener un par de streams de bytes. Todo lo de arriba es genérico sobre `AsyncRead + AsyncWrite`.
 
+### El corte por tiempo es del socket, y en Windows no hay
+
+El cliente le pone al socket Unix un **timeout de lectura de cinco segundos**: un daemon que acepta la conexión y no contesta se da por perdido.
+
+**En Windows no lo hay.** Un named pipe se abre como un archivo, y la API de archivos no expone el timeout: ponerlo pediría `SetCommTimeouts` sobre el handle. Ahí, un daemon que no contesta deja al cliente esperando. Es la única diferencia visible entre los dos transportes, y por eso se escribe en vez de disimularse.
+
 ### Los dos sistemas se compilan
 
 Unix y Windows se compilan los dos. `lspd` corre en el repo de cualquiera que use uno de sus consumidores, y ese repo puede estar en Windows.
