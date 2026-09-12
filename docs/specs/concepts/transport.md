@@ -4,7 +4,7 @@ Un socket local, y **nada que configurar**.
 
 ## La ruta
 
-### La ruta se deriva, y no hay nada que configurar
+### La ruta se deriva
 
 | Sistema | Dónde |
 |---|---|
@@ -13,7 +13,7 @@ Un socket local, y **nada que configurar**.
 
 No hay flag, ni variable de entorno, ni archivo de configuración. Quien quiera hablarle al daemon calcula la ruta con la misma regla y llega.
 
-### La regla del nombre es una superficie versionada como cualquier otra
+### *"La misma regla"* dice más de lo que parece
 
 **Es la misma sólo si las dos puntas corren la misma versión de la regla**, y eso no está garantizado por nada: el daemon y el cliente se instalan por caminos distintos. `lspd` sale de esta capa; sus consumidores —`bilinker` y `lattice`— toman `lspd-client` **del remoto de git**, y el `Cargo.lock` que fija el commit no está versionado. Así que un clon nuevo resuelve la rama y coincide, y un checkout que ya existía se queda con el commit que resolvió la primera vez.
 
@@ -33,7 +33,7 @@ Medido el 2026-09-07: `bilinker check` en una capa de accreta falló con `file n
 
 Con una puerta por workspace eso no se detecta: **no se puede representar.** El que contesta en mi puerta es el mío por construcción.
 
-### Hay una puerta por workspace
+### El nombre no puede ser el folder tal cual
 
 `sun_path` son **108 bytes** en Linux, y un workspace real ya son 64 — `/home/anibal/Workspace/accreta/subsystems/worklist/.stratum/impl`. Más `~/.lspd/` y `.sock` queda en ~90: entra por poco, y **uno más profundo lo rompe**.
 
@@ -43,7 +43,7 @@ El hash sale del **path canónico**, así que dos rutas que apuntan al mismo lug
 
 Y el nombre legible no es decoración: sin él `~/.lspd/` es un directorio de hashes, y **un directorio de hashes no se puede mirar**. Con él, `ls` contesta de qué proyecto es cada puerta.
 
-### El nombre son los dos últimos segmentos visibles, y un hash corto
+### Y el basename solo no alcanza
 
 Acá decía *"el basename para leerlo"*, y **medido el 2026-09-08 cuatro de las cinco puertas de esta máquina se llamaban `impl-<hash>`**. El basename de toda capa de stratum es literalmente `impl` —`subsystems/worklist/.stratum/impl`— así que la parte que existía para distinguir proyectos era la misma en todas.
 
@@ -59,7 +59,7 @@ Saltear los ocultos es lo que saca `.stratum` del medio y deja pegados los dos s
 
 **El `daemon.pid` va por el mismo camino**, y por el mismo motivo: es lo que permite decir *qué* proceso atiende esta puerta.
 
-### El workspace lo calcula quien llama
+### Quién calcula el workspace, y por qué no el cliente
 
 **El que llama.** Es el único que lo sabe: es la raíz que le va a preguntar, y es lo mismo que el daemon ya recibe en `--workspace`.
 
@@ -69,7 +69,7 @@ Derivarlo adentro del cliente sería adivinar desde dónde se lo invocó — y e
 
 ## Por qué un socket local
 
-### No es TCP en loopback
+### Por qué no TCP en loopback
 
 Sería **un solo camino de código** en vez de dos, y ahí se complica:
 

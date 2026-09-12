@@ -1,5 +1,9 @@
 # El protocolo
 
+## El framing
+
+### JSON-RPC 2.0, con un objeto por línea
+
 JSON-RPC 2.0 con **framing newline-delimited**: cada mensaje es un objeto JSON en una línea, terminado en `\n`. Va sobre el [transporte](transport.md) que corresponda al sistema operativo, y no sabe cuál es.
 
 ```json
@@ -9,7 +13,7 @@ JSON-RPC 2.0 con **framing newline-delimited**: cada mensaje es un objeto JSON e
 
 ## Las preguntas
 
-### Los métodos, sus params y sus resultados
+### Los métodos
 
 | Método | Params | Resultado |
 |---|---|---|
@@ -21,7 +25,7 @@ JSON-RPC 2.0 con **framing newline-delimited**: cada mensaje es un objeto JSON e
 | `ping` | — | `"pong"` |
 | `shutdown` | — | `null`, y cierra la conexión |
 
-`CalleeInfo` es `{symbol, name, file, line, col}`; `callees` y `callers` comparten esquema. `SymbolInfo` es `{symbol, name, kind}`. `LspStatus` es `{name, state, queries}`, con `state` en `INDEXING | READY | RUNNING` — ver [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-se-reporta-running). `DefinitionInfo` es `{name, file, line, col, end_line, end_col}`.
+`CalleeInfo` es `{symbol, name, file, line, col}`; `callees` y `callers` comparten esquema. `SymbolInfo` es `{symbol, name, kind}`. `LspStatus` es `{name, state, queries}`, con `state` en `INDEXING | READY | RUNNING` — ver [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar). `DefinitionInfo` es `{name, file, line, col, end_line, end_col}`.
 
 ### `definitions` es la única pregunta que no es del call graph
 
@@ -37,7 +41,7 @@ Y la dedup la hace el language server: las tres menciones de `Persona` en `Perso
 
 ## Lo que viaja
 
-### Hacia el language server viaja lo mismo: un path y una posición
+### Hacia abajo viaja lo mismo, y por eso hay que escribirlo
 
 Esta página es la frontera de arriba —entre quien pregunta y el daemon—, y hay otra abajo: el LSP que `lspd` habla con cada language server. **Lo que cruza la de abajo es lo mismo que cruzó la de arriba: un path y una posición.** Nunca el contenido del archivo.
 
@@ -47,7 +51,7 @@ Decirlo acá parece de más, porque de arriba nunca viajó un contenido y no hay
 
 Hay una segunda consecuencia del mismo hecho: **N preguntas sobre el mismo archivo son N punteros y no N copias.** Lo que se encole deja de crecer con el tamaño de los archivos que alguien esté consultando.
 
-### El servidor ya tiene el archivo, así que no hay `did_open`
+### El servidor ya tiene el archivo
 
 `lspd` arranca a cada language server **parado en el workspace** y le declara sus raíces —ver [los language servers](language-servers.md)—, así que lee del mismo filesystem que el daemon. Mandarle un archivo que puede abrir solo es trabajo que no hace falta.
 
@@ -61,7 +65,7 @@ Es el mismo dato que esta capa ya usó del otro lado, cuando decidió arrancar a
 
 ## Cuándo se puede contestar
 
-### `ping` dice si hay daemon, y no si está listo
+### `ping` no es diagnóstico
 
 Es cómo se decide si hay daemon. Un consumidor que quiera arrancarlo si no está pregunta `ping` y mira si contesta; no hay archivo de pid que consultar ni proceso que enumerar.
 

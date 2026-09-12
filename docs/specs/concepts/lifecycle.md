@@ -41,11 +41,11 @@ language servers:
 
 Un daemon recién arrancado no tiene ninguno: se levantan **por lenguaje y a demanda**, la primera vez que llega una pregunta sobre un archivo de ese lenguaje. `(ninguno arrancado todavía)` es un estado normal y no un problema.
 
-Los tres estados están en [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-se-reporta-running). El que hay que saber leer es el tercero: **`RUNNING` no es peor que `READY`, es que ese servidor no informa readiness** y por eso `lspd` no la afirma. Un `INDEXING` con `queries` arriba de cero es normal y es lo que este comando existe para mostrar — son las preguntas que se contestaron con `-32001`, y dicen cuándo conviene volver.
+Los tres estados están en [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar). El que hay que saber leer es el tercero: **`RUNNING` no es peor que `READY`, es que ese servidor no informa readiness** y por eso `lspd` no la afirma. Un `INDEXING` con `queries` arriba de cero es normal y es lo que este comando existe para mostrar — son las preguntas que se contestaron con `-32001`, y dicen cuándo conviene volver.
 
 ## Quién lo arranca
 
-### Arrancarlo a mano no es lo que hace un consumidor
+### Arrancarlo no es del daemon
 
 `lspd start` existe para la persona que quiere arrancarlo a mano. **Un consumidor no lo usa**: pregunta `ping`, y si no hay nadie levanta el binario con la política que le convenga. Lattice lo hace apenas el proveedor `lsp` hace falta; bilinker no lo hace nunca —degrada a *no verificado*— y las dos son decisiones de ellos y no de acá.
 
