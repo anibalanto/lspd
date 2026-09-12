@@ -10,4 +10,11 @@ endpoint:
     name: fila-status
   1:
     link: capture a82f53e756690914b32f8ae1fdf386aa
+    accepted:
+    - agree:
+      - anibal
+      link: capture a82f53e756690914b32f8ae1fdf386aa
+      hash: 76bf7e827249fdb1ecb953f7bc18591b0dfb7c8064ff5caad427502eef280099
+      hash_ast: 4ac34a82b7821b819297bc848f996874ae7eeba12b2fe55a91b185e22ee14e82
+      n: declined
     name: status
