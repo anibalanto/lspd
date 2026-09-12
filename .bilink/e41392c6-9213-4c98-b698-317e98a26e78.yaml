@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 8cb882154cd0c7e23ef3ebe4cfd3b94e
+    accepted:
+    - agree:
+      - anibal
+      link: capture 8cb882154cd0c7e23ef3ebe4cfd3b94e
+      hash: d82251e24305a88f682466fb0a96c433c7d437107428f407577a6fc8d4a6db5f
     name: la-tabla
   1:
     link: capture c7dec5c89c3526c8468c6da77880fd02
