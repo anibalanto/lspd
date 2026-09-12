@@ -67,7 +67,7 @@ Derivarlo adentro del cliente sería adivinar desde dónde se lo invocó — y e
 
 **Que no haya configuración es el criterio con que se eligió el transporte**, no una consecuencia. Un socket local es lo único que se puede derivar de nada: existe en un lugar fijo del sistema de archivos, y ese lugar es el mismo para el que escucha y para el que llama.
 
-## El transporte
+## Por qué un socket local
 
 ### No es TCP en loopback
 
