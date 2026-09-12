@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 1aa4c9ed97571ff2ca4fbc3ea71791be
+    accepted:
+    - agree:
+      - anibal
+      link: capture 1aa4c9ed97571ff2ca4fbc3ea71791be
+      hash: f77a93b4d25fbd164c227c54a29720963ab9caae262a29c14c1e2ed054e452db
     name: quien-calcula-el-workspace
   1:
     link: capture 186d0bb9bce9bd72a43deb6845ee9338
