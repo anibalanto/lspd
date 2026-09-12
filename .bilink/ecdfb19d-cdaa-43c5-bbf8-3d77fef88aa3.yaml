@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture e647f2640b2e5c47631f6f41f2354ab0
+    accepted:
+    - agree:
+      - anibal
+      link: capture e647f2640b2e5c47631f6f41f2354ab0
+      hash: 94f3fea7a0538f22b291f4fa057dfb09e5980f3266203f02c94811e37799009a
     name: dos-transportes
   1:
     link: capture a6309c17d5f06b4df149bc34fb253fad
