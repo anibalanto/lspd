@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture dc72694e5edbbcfaa117d00373403952
+    name: el-nombre
+  1:
+    link: capture cb9f8b407d8bcfa564dbcef68bc44af4
+    name: transport::name

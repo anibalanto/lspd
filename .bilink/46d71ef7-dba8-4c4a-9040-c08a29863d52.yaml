@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 6d5cb869db1bda4ee18b53b2a3276be6
+    name: not-ready
+  1:
+    link: capture 8fa34f3df7d931d725b0c161ea11df97
+    name: ready_or_bail

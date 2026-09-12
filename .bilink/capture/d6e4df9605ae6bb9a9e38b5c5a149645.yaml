@@ -1,0 +1,6 @@
+file: docs/specs/concepts/protocol.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Cuándo se puede contestar"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "`ping` no es diagnóstico"))) @target)

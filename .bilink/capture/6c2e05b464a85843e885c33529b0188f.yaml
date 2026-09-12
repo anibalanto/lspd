@@ -1,0 +1,6 @@
+file: docs/specs/concepts/language-servers.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "La readiness"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "Terminar el handshake no es estar listo"))) @target)

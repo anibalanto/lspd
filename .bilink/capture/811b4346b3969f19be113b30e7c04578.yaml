@@ -1,0 +1,6 @@
+file: docs/specs/concepts/lifecycle.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Quién lo arranca"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "El binario tiene que estar donde el consumidor lo encuentre"))) @target)

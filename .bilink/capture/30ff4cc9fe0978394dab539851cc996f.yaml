@@ -1,0 +1,4 @@
+file: crates/lspd-client/src/transport.rs
+query: |-
+  (function_item
+    name: (identifier) @n0 (#eq? @n0 "label")) @target

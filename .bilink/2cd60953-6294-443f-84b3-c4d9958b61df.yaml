@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture d6e4df9605ae6bb9a9e38b5c5a149645
+    name: ping
+  1:
+    link: capture 62058ee64b0cb214b6d8268ba0c101b7
+    name: responds

@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 811b4346b3969f19be113b30e7c04578
+    name: el-binario
+  1:
+    link: capture 810b455788c64c5ed8ae26d0d2fafa36
+    name: binary

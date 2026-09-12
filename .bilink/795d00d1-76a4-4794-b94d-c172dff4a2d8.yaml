@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 6c2e05b464a85843e885c33529b0188f
+    name: handshake-no-es-listo
+  1:
+    link: capture 381f5fc4660200464ca8d2e7aa02b694
+    name: Readiness

@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture cae3378b069dd3adc756b54c590db991
+    name: los-metodos
+  1:
+    link: capture 8bd91791cb4bf4800ecbd718cf7b1884
+    name: ipc::dispatch

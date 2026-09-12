@@ -1,0 +1,6 @@
+file: docs/specs/concepts/protocol.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Qué no está en el protocolo"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "El workspace no viaja en cada pregunta"))) @target)

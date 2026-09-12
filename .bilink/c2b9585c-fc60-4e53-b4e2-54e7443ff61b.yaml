@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 1aa4c9ed97571ff2ca4fbc3ea71791be
+    name: quien-calcula-el-workspace
+  1:
+    link: capture 186d0bb9bce9bd72a43deb6845ee9338
+    name: endpoint

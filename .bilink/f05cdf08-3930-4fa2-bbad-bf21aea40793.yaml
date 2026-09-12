@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture db380709f46dc5978a59881ca7f861c8
+    name: hacia-abajo
+  1:
+    link: capture 197dfb13a820e277b030d2f16a243af8
+    name: LspClient::callees

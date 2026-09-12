@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 0b9ccae495352cbed61b76d930ba5768
+    name: el-workspace-no-viaja
+  1:
+    link: capture 3dfb439ff26ae01e6753fb83e8c8279a
+    name: LspManager::new

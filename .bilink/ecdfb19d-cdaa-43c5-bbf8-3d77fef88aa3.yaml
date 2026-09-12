@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture e647f2640b2e5c47631f6f41f2354ab0
+    name: dos-transportes
+  1:
+    link: capture a6309c17d5f06b4df149bc34fb253fad
+    name: Stream

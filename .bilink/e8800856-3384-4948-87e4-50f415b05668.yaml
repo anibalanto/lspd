@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 4aa529e42dfc124d0fc9c34b0e9a3559
+    name: status
+  1:
+    link: capture cbdf5c163e3105082c7d2394f9b1ab88
+    name: LspManager::status

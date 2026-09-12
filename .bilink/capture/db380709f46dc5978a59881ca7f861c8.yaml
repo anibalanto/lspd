@@ -1,0 +1,6 @@
+file: docs/specs/concepts/protocol.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Lo que viaja"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "Hacia abajo viaja lo mismo, y por eso hay que escribirlo"))) @target)

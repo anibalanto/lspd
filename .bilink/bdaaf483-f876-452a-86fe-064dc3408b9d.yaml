@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 7405aad7a2565c0494697ad593e31c87
+    name: definitions
+  1:
+    link: capture b3c78ccde45ec0f0a5242337dec5c80d
+    name: LspClient::definitions

@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 7f4c307a87e55033a349a6d57cf6a91f
+    name: no-una-pregunta-por-vez
+  1:
+    link: capture edd40c8da102112fa2125733432f1b74
+    name: LspClient

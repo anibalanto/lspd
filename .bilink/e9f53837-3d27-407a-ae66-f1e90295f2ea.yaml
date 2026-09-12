@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 91155fbf34d636ecd5da412001a203f6
+    name: un-servidor-por-lenguaje
+  1:
+    link: capture 3f50a7ac867d83e75069978747d50ca0
+    name: client_for

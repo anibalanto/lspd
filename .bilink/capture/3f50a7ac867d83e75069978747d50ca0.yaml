@@ -1,0 +1,7 @@
+file: crates/lspd/src/lsp_manager.rs
+query: |-
+  (impl_item
+    type: (type_identifier) @n0 (#eq? @n0 "LspManager")
+    body: (declaration_list
+    (function_item
+    name: (identifier) @n1 (#eq? @n1 "client_for")) @target))

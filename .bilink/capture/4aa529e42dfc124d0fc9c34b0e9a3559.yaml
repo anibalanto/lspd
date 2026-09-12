@@ -1,0 +1,6 @@
+file: docs/specs/concepts/lifecycle.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Los tres comandos"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "`lspd status` dice qué servidores hay, y en qué estado"))) @target)

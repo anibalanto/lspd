@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 90bec2ad9e9a3a7580e35c7820617f68
+    name: el-disco
+  1:
+    link: capture 2d0f2425c0cd53ab6189ee335e386258
+    name: dir

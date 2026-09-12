@@ -1,0 +1,6 @@
+file: docs/specs/concepts/language-servers.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "El disco"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "Lo que deja en el disco"))) @target)

@@ -1,0 +1,13 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 6ba3c19723aec766a68987cffb7c7805
+    accepted:
+    - agree:
+      - anibal
+      link: capture 6ba3c19723aec766a68987cffb7c7805
+      hash: 7dd6a10e83fac8464f191f91e64dbd525534bbf0dce90bdd73a3ac699e2797e3
+    name: el-error
+  1:
+    link: capture 5b2928edddae3b3ef790c6d23338a09d
+    name: RpcError

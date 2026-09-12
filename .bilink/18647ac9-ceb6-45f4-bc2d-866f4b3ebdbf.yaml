@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture c97b4eaa6546c110dedb0842d29daae8
+    name: handshake
+  1:
+    link: capture a20bccfe00014a769bbebd09d22de7a2
+    name: initialization_options

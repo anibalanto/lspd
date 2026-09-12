@@ -1,0 +1,6 @@
+file: docs/specs/concepts/protocol.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Las preguntas"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "`definitions` es la única pregunta que no es del call graph"))) @target)

@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture d6a6b1e368a15c1b84bd0bdcb48aca83
+    name: quien-la-tiene
+  1:
+    link: capture eae3ad88e33c37b701a15dfb0c1fe8c5
+    name: readiness_from
