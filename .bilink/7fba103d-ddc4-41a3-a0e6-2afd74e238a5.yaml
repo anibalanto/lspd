@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 5df920e86003ec1d0bcb2c7f6c5c89bb
+    accepted:
+    - agree:
+      - anibal
+      link: capture 5df920e86003ec1d0bcb2c7f6c5c89bb
+      hash: 6cb827d139d567ff704ee945c958a87297977d1528467b4f986e3ee1cc3e60f8
     name: fila-status
   1:
     link: capture a82f53e756690914b32f8ae1fdf386aa
