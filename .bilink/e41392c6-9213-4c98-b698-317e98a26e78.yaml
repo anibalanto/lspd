@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 8cb882154cd0c7e23ef3ebe4cfd3b94e
+    name: la-tabla
+  1:
+    link: capture c7dec5c89c3526c8468c6da77880fd02
+    name: Language::from_extension

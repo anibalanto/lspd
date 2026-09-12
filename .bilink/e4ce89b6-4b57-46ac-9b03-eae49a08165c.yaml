@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 00e152d27ced8bbc16cbdb63cca2c094
+    name: fila-stop
+  1:
+    link: capture fcf079299f562b8ca3286b0000920cd7
+    name: stop

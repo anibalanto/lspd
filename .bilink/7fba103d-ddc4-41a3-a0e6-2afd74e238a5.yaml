@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 5df920e86003ec1d0bcb2c7f6c5c89bb
+    name: fila-status
+  1:
+    link: capture a82f53e756690914b32f8ae1fdf386aa
+    name: status

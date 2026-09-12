@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 85c4140556337b27503a488631aafac6
+    name: el-framing
+  1:
+    link: capture 85c498e1cf7f8063a6c265e864e8c77c
+    name: ipc::serve

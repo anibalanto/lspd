@@ -1,0 +1,6 @@
+file: docs/specs/concepts/protocol.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "El framing"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "JSON-RPC 2.0, con un objeto por línea"))) @target)

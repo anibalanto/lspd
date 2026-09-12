@@ -1,0 +1,6 @@
+file: docs/specs/concepts/transport.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "La ruta"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "La ruta se deriva"))) @target)

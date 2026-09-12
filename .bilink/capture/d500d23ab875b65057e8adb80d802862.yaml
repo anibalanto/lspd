@@ -1,0 +1,7 @@
+file: docs/specs/commands.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Los comandos"))
+    (pipe_table
+    (pipe_table_row
+    (pipe_table_cell) @n1 (#eq? @n1 "`start` ")) @target))

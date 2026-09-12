@@ -1,0 +1,13 @@
+kind: governs
+endpoint:
+  0:
+    link: capture d500d23ab875b65057e8adb80d802862
+    accepted:
+    - agree:
+      - anibal
+      link: capture d500d23ab875b65057e8adb80d802862
+      hash: 6f9639bb0240cde7424a4a5f59273b19aff85ed1ee57f436e26ae9b1609aa742
+    name: fila-start
+  1:
+    link: capture 1a24c7ef2affa5ab54c97d9feedf9d62
+    name: start

@@ -1,0 +1,6 @@
+file: docs/specs/concepts/language-servers.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "El ciclo de un servidor"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "Se levantan a demanda y se reusan"))) @target)
