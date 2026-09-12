@@ -10,4 +10,11 @@ endpoint:
     name: un-servidor-por-lenguaje
   1:
     link: capture 3f50a7ac867d83e75069978747d50ca0
+    accepted:
+    - agree:
+      - anibal
+      link: capture 3f50a7ac867d83e75069978747d50ca0
+      hash: c386948c5649a6f1345df095c2adf8130205e211b8d360708894e0c46dc8991d
+      hash_ast: ec6cfca632b72aa1520ea84112b65686d2ec17f997e6cd0eb6bef89959253eed
+      n: declined
     name: client_for
