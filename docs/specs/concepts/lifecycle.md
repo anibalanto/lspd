@@ -17,7 +17,7 @@ lspd start [--workspace <path>]
 Arranca el daemon en background. Si ya hay uno corriendo, **no hace nada y retorna 1** — arrancar dos sobre el mismo socket dejaría al segundo sin poder escuchar, y decirlo es más útil que fallar al bindear.
 
 ```
-lspd started  pid=12345  endpoint=~/.lspd/daemon.sock
+lspd started  pid=12345  endpoint=~/.lspd/accreta-impl-1c8540.sock
 ```
 
 `endpoint` se imprime porque es lo que un consumidor va a mirar cuando algo no conecta, y cambia por sistema operativo. No se pasa: se deriva. Ver [el transporte](transport.md).
@@ -31,7 +31,7 @@ Manda `shutdown` a todos los language servers activos y termina el proceso. Si n
 ```
 $ lspd status
 
-lspd  pid=12345  endpoint=~/.lspd/daemon.sock
+lspd  pid=12345  endpoint=~/.lspd/accreta-impl-1c8540.sock
 
 language servers:
   rust-analyzer               READY     queries=147
