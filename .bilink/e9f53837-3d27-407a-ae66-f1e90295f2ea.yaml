@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 91155fbf34d636ecd5da412001a203f6
+    accepted:
+    - agree:
+      - anibal
+      link: capture 91155fbf34d636ecd5da412001a203f6
+      hash: 2890931af3d34545ee25c47cf2ec91523b9606aa9b60b9f9047077dda363ce8e
     name: un-servidor-por-lenguaje
   1:
     link: capture 3f50a7ac867d83e75069978747d50ca0
