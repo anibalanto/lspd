@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture db380709f46dc5978a59881ca7f861c8
+    accepted:
+    - agree:
+      - anibal
+      link: capture db380709f46dc5978a59881ca7f861c8
+      hash: 5c4354ab75546d112694a674f8e69e51739177459cf32d26217c29fefc92d4bb
     name: hacia-abajo
   1:
     link: capture 197dfb13a820e277b030d2f16a243af8
