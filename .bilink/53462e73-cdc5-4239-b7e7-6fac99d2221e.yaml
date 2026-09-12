@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture cae3378b069dd3adc756b54c590db991
+    accepted:
+    - agree:
+      - anibal
+      link: capture cae3378b069dd3adc756b54c590db991
+      hash: 3188368e523a558560a083bcfeb6d797f2f029af544d46010c39daae7c7b6b7f
     name: los-metodos
   1:
     link: capture 8bd91791cb4bf4800ecbd718cf7b1884
