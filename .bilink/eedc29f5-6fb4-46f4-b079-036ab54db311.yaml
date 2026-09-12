@@ -10,4 +10,11 @@ endpoint:
     name: arrancarlo
   1:
     link: capture 68ec5345af10866f0a16e4392e28d670
+    accepted:
+    - agree:
+      - anibal
+      link: capture 68ec5345af10866f0a16e4392e28d670
+      hash: 2703ffab38de68f7d4d20d25f4ef99ad9c6619f3a3d83199c90cd1ced822cd18
+      hash_ast: e3be7b4f253b3a24f02b50f8839bbd2c295e3af82105d8ddb0b88ed79bbedf92
+      n: declined
     name: spawn
