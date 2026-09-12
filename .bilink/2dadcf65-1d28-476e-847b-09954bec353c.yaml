@@ -10,4 +10,11 @@ endpoint:
     name: el-basename
   1:
     link: capture 30ff4cc9fe0978394dab539851cc996f
+    accepted:
+    - agree:
+      - anibal
+      link: capture 30ff4cc9fe0978394dab539851cc996f
+      hash: 6b011ca3b39716828fe48de26ef4e4fde48f40818d64a4f806501f510290b2a3
+      hash_ast: 80fab3e327fa2e3c5d1cf498ef9055a362d2560263a93ef13c2773ff4c6764cf
+      n: declined
     name: transport::label
