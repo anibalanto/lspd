@@ -10,4 +10,11 @@ endpoint:
     name: ping
   1:
     link: capture 62058ee64b0cb214b6d8268ba0c101b7
+    accepted:
+    - agree:
+      - anibal
+      link: capture 62058ee64b0cb214b6d8268ba0c101b7
+      hash: 2f487431c7882b5af02de322d543e74184d9bcf5ff5150c804bffcccec7400ca
+      hash_ast: 47fed9ac4810cf7a94ca916d850f361e61854f8a4eab760de0346b9b821e4a5c
+      n: declined
     name: responds
