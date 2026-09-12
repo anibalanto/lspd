@@ -10,4 +10,11 @@ endpoint:
     name: status
   1:
     link: capture cbdf5c163e3105082c7d2394f9b1ab88
+    accepted:
+    - agree:
+      - anibal
+      link: capture cbdf5c163e3105082c7d2394f9b1ab88
+      hash: 3e328b706018cd4d513d05692fe4d1f2965ca2778c0ea96f3b83d5e3bfd4362d
+      hash_ast: 815dd7024e33612a12626daa066f56a86515159ae3ac00b89b56386451930513
+      n: declined
     name: LspManager::status
