@@ -10,4 +10,11 @@ endpoint:
     name: handshake
   1:
     link: capture a20bccfe00014a769bbebd09d22de7a2
+    accepted:
+    - agree:
+      - anibal
+      link: capture a20bccfe00014a769bbebd09d22de7a2
+      hash: f2439378fbea8d629db963c45de3ed58bc6a6dbbaf4647e9160892a438014ad0
+      hash_ast: d943b91d49efe563944614e0571077eee2994a2b0732cbbfa59d705730bf41d1
+      n: declined
     name: initialization_options
