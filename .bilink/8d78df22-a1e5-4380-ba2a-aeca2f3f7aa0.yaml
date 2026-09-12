@@ -10,4 +10,10 @@ endpoint:
     name: corte-por-tiempo
   1:
     link: capture e48896dd6bf32e59bb0c5d15dde72392
+    accepted:
+    - agree:
+      - anibal
+      link: capture e48896dd6bf32e59bb0c5d15dde72392
+      hash: 3b26235af2ac284b47614114fdfb818d0e2295d39765159bc56f516d6863c5bb
+      hash_ast: e6350a81808a310a236208cc7f1663eaadaa1224b7273c55213b4daba96a5f4b
     name: TIMEOUT
