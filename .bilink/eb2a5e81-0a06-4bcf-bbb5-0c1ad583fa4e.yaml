@@ -6,7 +6,7 @@ endpoint:
     - agree:
       - anibal
       link: capture 90bec2ad9e9a3a7580e35c7820617f68
-      hash: 11624107f7f7b77900f055bbb097f43c6a8a9419a16eefd1e5fadee0719733af
+      hash: 00ddc889c12971cb0c3570329691f52583e882d388c1dd18c7cc9a93168586dd
     name: el-disco
   1:
     link: capture 2d0f2425c0cd53ab6189ee335e386258
