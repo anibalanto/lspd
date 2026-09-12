@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture ff45851784163549f8541da45fd2d43c
+    name: corte-por-tiempo
+  1:
+    link: capture e48896dd6bf32e59bb0c5d15dde72392
+    name: TIMEOUT

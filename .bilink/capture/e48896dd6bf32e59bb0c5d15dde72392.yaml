@@ -1,0 +1,4 @@
+file: crates/lspd-client/src/lib.rs
+query: |-
+  (const_item
+    name: (identifier) @n0 (#eq? @n0 "TIMEOUT")) @target
