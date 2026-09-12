@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 6e6fa5febcbde640935ca8092063c404
+    accepted:
+    - agree:
+      - anibal
+      link: capture 6e6fa5febcbde640935ca8092063c404
+      hash: a0e6b22052ff793087122a6140ab57815d8428f84a618d739389966005e8fa58
     name: la-ruta-se-deriva
   1:
     link: capture 7a5319dd5b0c5810afba2b2890a18897
