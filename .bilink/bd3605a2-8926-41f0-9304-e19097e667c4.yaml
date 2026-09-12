@@ -10,4 +10,10 @@ endpoint:
     name: running
   1:
     link: capture 0f65c72da59a4b75ba318aa4b50e2617
+    accepted:
+    - agree:
+      - anibal
+      link: capture 0f65c72da59a4b75ba318aa4b50e2617
+      hash: 8a34c8dd3fdfc4457fb947fc999c633b18b15c6b5bc78dec647647c374d1a6b7
+      hash_ast: 6d6a4daa59a15a9fc4a84df95e0095e9a49cddecd40be19344a25b5da4ff565d
     name: reports_readiness
