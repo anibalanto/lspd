@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture d3088abc9bbc9c74a95729c0cb15a03c
+    accepted:
+    - agree:
+      - anibal
+      link: capture d3088abc9bbc9c74a95729c0cb15a03c
+      hash: 89f4bc1f4f80aefe8498b950077d3dd19245ec44a0c4201c3a9dcd07a1dfb97f
     name: transporte
   1:
     link: capture 7a5319dd5b0c5810afba2b2890a18897
