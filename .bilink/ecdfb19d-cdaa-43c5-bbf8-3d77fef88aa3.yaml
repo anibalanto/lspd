@@ -10,4 +10,10 @@ endpoint:
     name: dos-transportes
   1:
     link: capture a6309c17d5f06b4df149bc34fb253fad
+    accepted:
+    - agree:
+      - anibal
+      link: capture a6309c17d5f06b4df149bc34fb253fad
+      hash: a49e48988e980670fcee5b9ede7917628bb60fdbee442a7a6804ca5cf8b9850e
+      hash_ast: 835154a31c9173a4f5e32085d42574470dd4551bb50855a7603c2aea56b6fe7b
     name: Stream
