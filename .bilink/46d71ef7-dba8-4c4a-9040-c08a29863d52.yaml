@@ -2,6 +2,11 @@ kind: governs
 endpoint:
   0:
     link: capture 6d5cb869db1bda4ee18b53b2a3276be6
+    accepted:
+    - agree:
+      - anibal
+      link: capture 6d5cb869db1bda4ee18b53b2a3276be6
+      hash: 6e1965ce0905104f75371377bcd9a7d16d33a51c5e4922913d2aa13cd63d7cb2
     name: not-ready
   1:
     link: capture 8fa34f3df7d931d725b0c161ea11df97
