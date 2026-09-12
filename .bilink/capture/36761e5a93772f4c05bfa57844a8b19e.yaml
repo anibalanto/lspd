@@ -1,0 +1,4 @@
+file: docs/specs/concepts/language-servers.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Los language servers"))) @target

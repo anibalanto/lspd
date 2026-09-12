@@ -1,0 +1,8 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 36761e5a93772f4c05bfa57844a8b19e
+    name: language-servers
+  1:
+    link: capture 0875b638b4e0e6005b31656b134ed170
+    name: LspClient::spawn

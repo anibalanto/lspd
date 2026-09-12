@@ -10,11 +10,4 @@ endpoint:
     name: tabla-lenguajes
   1:
     link: capture 8854d7d6c05d405ee608ce72ebf289b7
-    accepted:
-    - agree:
-      - anibal
-      link: capture 8854d7d6c05d405ee608ce72ebf289b7
-      hash: d8b12727a35d34fc075bf7dfab5bf14832465a0b025612183725fa2deb9eb5bd
-      hash_ast: fdb5321400953a8ba115b289eaf1ce8aeba875c5d6b125aac074f65ecc1a2366
-      n: declined
     name: Language::from_extension
