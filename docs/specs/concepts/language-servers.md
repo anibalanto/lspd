@@ -17,7 +17,7 @@
 
 Si el ejecutable no está en PATH, la respuesta es un error explícito y no un vacío: `LSP for rust not found: install rust-analyzer`. Un vacío se leería como *"no hay llamadas"*.
 
-### Cada servidor pide lo suyo en el handshake
+### Y la tabla tiene una columna más: qué pide cada servidor en el handshake
 
 La tabla dice qué ejecutable buscar. **Lo que no dice, y hace falta, es qué necesita cada uno para arrancar de verdad**, porque LSP dejó ese pedazo abierto: `initializationOptions` es un campo libre y cada servidor pone ahí lo suyo.
 
@@ -28,7 +28,7 @@ La tabla dice qué ejecutable buscar. **Lo que no dice, y hace falta, es qué ne
 
 **Sigue siendo una tabla, y por eso entra acá.** Es un dato por servidor —una constante, no una decisión—, y agregar un lenguaje sigue siendo agregar una fila. Lo que cambia es que la fila tiene dos casillas en vez de una.
 
-### Con cuánta memoria se lanza cada uno
+### Y una más: con cuánta memoria se lo lanza
 
 Un proceso hijo que no recibe un límite hereda el que el runtime del servidor calcule solo, y **eso no es cero: es lo que ese runtime decida por su cuenta.** La JVM que corre `jdtls` fija su heap máximo en **un cuarto de la RAM de la máquina** —7,8 GB en una de 32 GB— y arranca reservando 1 GB. Ninguno de los dos números los eligió `lspd`, y el primero cambia de máquina en máquina.
 
@@ -64,7 +64,7 @@ shutdown
 
 Un daemon recién arrancado no tiene ninguno levantado, y eso es normal: `status` lo dice.
 
-### Uno por lenguaje es una invariante, y el mapa de clientes la sostiene
+### Uno por lenguaje es una invariante, y el mapa de clientes es quien la sostiene
 
 **No hay servidor corriendo que el mapa no tenga.** Parece una consecuencia de levantarlos a demanda y no lo es: el diagrama de arriba se lee como si las queries llegaran una atrás de la otra, y no llegan —`check` sobre un repo pregunta en paralelo—, y *"primera query de un lenguaje"* no es un instante sino el tramo entero del handshake, que con `jdtls` son segundos.
 
@@ -100,7 +100,7 @@ Hacia cada servidor hay **un solo socket**, y los mensajes no se pueden entrever
 >
 > **Medido el 2026-09-03**, soltando el candado: un `check` de un archivo sobre un repo Java con 98 bilinks y 391 preguntas pasó de **25,04 s a 3,59 s**, con las mismas 391 preguntas y los mismos 98 resultados. **7×, y ninguno de esos segundos era trabajo.**
 
-### El techo de preguntas en vuelo es de cada servidor, y todavía no está
+### Falta el techo, y el número no sale de acá
 
 Soltar el candado antes deja pasar tantas preguntas en vuelo como tareas haya preguntando — otra vez un número que nadie eligió, como el `cwd` heredado y el techo de heap de las dos tablas de arriba. El techo se elige, y donde se elige es acá.
 
@@ -116,7 +116,7 @@ Soltar el candado antes deja pasar tantas preguntas en vuelo como tareas haya pr
 
 Un vacío ahí no significa lo que significa después. Es la misma regla que esta página ya aplica al ejecutable que falta —*"la respuesta es un error explícito y no un vacío; un vacío se leería como no hay llamadas"*— y el mismo tramo que lattice llama `Degraded`. Lo que cambia es de qué lado se resuelve: **lattice lo infiere de que acaba de arrancar el daemon, y eso sólo sirve para quien lo arrancó.** Quien encuentra un daemon ya prendido no tiene de dónde inferirlo, así que la señal la tiene que dar `lspd`.
 
-### Quien informa la readiness es el servidor
+### Y quien la tiene es el servidor
 
 No se cronometra ni se adivina: los dos servidores que importan lo dicen, cada uno con su extensión, y son las dos notificaciones que el daemon escucha.
 
@@ -127,7 +127,7 @@ No se cronometra ni se adivina: los dos servidores que importan lo dicen, cada u
 
 La de `rust-analyzer` **hay que pedirla**: sin `experimental.serverStatusNotification` en las capabilities del `initialize`, no la manda. La de `jdtls` viene sola.
 
-### Un servidor que no informa su estado se reporta `RUNNING`
+### Un servidor que no informa su estado no se puede esperar
 
 `typescript-language-server` y los de Python no mandan ninguna de las dos, y `lspd` no puede inventar la señal — cronometrar el arranque sería adivinar, y adivinar mal en la dirección cara.
 
@@ -147,7 +147,7 @@ Así que la readiness tiene **tres** valores y no dos, y el tercero es el honest
 
 ## El disco
 
-### Lo que el daemon deja en el disco
+### Lo que deja en el disco
 
 ```
 ~/.lspd/
