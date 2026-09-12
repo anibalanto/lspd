@@ -10,4 +10,11 @@ endpoint:
     name: el-binario
   1:
     link: capture 810b455788c64c5ed8ae26d0d2fafa36
+    accepted:
+    - agree:
+      - anibal
+      link: capture 810b455788c64c5ed8ae26d0d2fafa36
+      hash: 3cb51197ea047780e3ec5871d50331c04af0376579bd1e42db8da1867fc26b8b
+      hash_ast: 918239d230a6065dd5d1dd76a613cbbe783134e204033feab096476bb35689a4
+      n: declined
     name: binary
