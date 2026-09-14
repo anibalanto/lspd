@@ -18,6 +18,9 @@ use anyhow::{Context, Result};
 mod transport;
 pub use transport::{connect, connect_to, Endpoint};
 
+mod wait;
+pub use wait::{parse_status, wait_ready, ServerState, Waited, POLL};
+
 /// El directorio del daemon. Se **deriva**: no hay nada que configurar.
 pub fn dir() -> PathBuf {
     let home = std::env::var("HOME")
@@ -155,14 +158,31 @@ pub fn binary() -> PathBuf {
 /// Lo levanta en background y espera a que conteste.
 ///
 /// **Cuándo llamarlo es del consumidor, no de acá.** Lattice lo hace apenas el
-/// proveedor `lsp` hace falta; bilinker no lo hace nunca y degrada a *no
-/// verificado*. Lo que esta función aporta es el mecanismo, no la política.
+/// proveedor `lsp` hace falta; el adaptador de bilinker, cuando la puerta de su
+/// workspace no contesta, y después espera a sus servidores con [`wait_ready`]. Lo
+/// que esta función aporta es el mecanismo, no la política.
+///
+/// **El daemon nace en su propio grupo de procesos.** Si compartiera el de quien lo
+/// levanta, el Ctrl-C que corta a ese proceso —una espera en una terminal— le
+/// llegaría también al daemon, y lo apagaría.
 pub fn spawn(workspace: &std::path::Path) -> Result<u32> {
     let bin = binary();
-    let child = std::process::Command::new(&bin)
-        .arg("--workspace").arg(workspace)
+    let mut cmd = std::process::Command::new(&bin);
+    cmd.arg("--workspace").arg(workspace)
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    }
+    let child = cmd
         .spawn()
         .map_err(|e| anyhow::anyhow!("no se pudo arrancar el daemon ({}): {e}", bin.display()))?;
 
