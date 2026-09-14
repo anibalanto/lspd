@@ -1,0 +1,4 @@
+file: crates/lspd-client/src/wait.rs
+query: |-
+  (struct_item
+    name: (type_identifier) @n0 (#eq? @n0 "ServerState")) @target
