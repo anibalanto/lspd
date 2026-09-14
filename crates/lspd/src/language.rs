@@ -7,6 +7,49 @@ pub enum Language {
 }
 
 impl Language {
+    /// Todos, en el orden en que se listan: el de la tabla de marcadores.
+    pub const ALL: [Self; 4] = [Self::Rust, Self::Java, Self::TypeScript, Self::Python];
+
+    /// El nombre del lenguaje, como lo escribe quien pide calentarlo.
+    ///
+    /// **No es el del servidor**: `rust` y no `rust-analyzer`. Quien sabe qué lenguaje
+    /// tiene su workspace no tiene por qué saber qué ejecutable lo atiende.
+    pub fn id(&self) -> &'static str {
+        match self {
+            Self::Rust       => "rust",
+            Self::Java       => "java",
+            Self::TypeScript => "typescript",
+            Self::Python     => "python",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|l| l.id() == name)
+    }
+
+    /// Los archivos que, en la raíz de un workspace, dicen que ahí hay un proyecto de
+    /// este lenguaje.
+    fn markers(&self) -> &'static [&'static str] {
+        match self {
+            Self::Rust       => &["Cargo.toml"],
+            Self::Java       => &["pom.xml", "build.gradle", "build.gradle.kts"],
+            Self::TypeScript => &["package.json", "tsconfig.json"],
+            Self::Python     => &["pyproject.toml", "setup.py", "requirements.txt"],
+        }
+    }
+
+    /// Qué lenguajes tiene un workspace, según los marcadores de su raíz.
+    ///
+    /// **Sólo la raíz, y sólo archivos.** Recorrer el árbol sería lento en un repo
+    /// grande, obligaría a respetar `.gitignore`, y un `.py` suelto en `scripts/`
+    /// levantaría un servidor que nadie va a consultar.
+    pub fn from_markers(workspace: &std::path::Path) -> Vec<Self> {
+        Self::ALL
+            .into_iter()
+            .filter(|l| l.markers().iter().any(|m| workspace.join(m).is_file()))
+            .collect()
+    }
+
     pub fn from_extension(ext: &str) -> Option<Self> {
         match ext {
             "rs"                    => Some(Self::Rust),
@@ -182,6 +225,82 @@ fn is_in_path(name: &str) -> bool {
         let full = dir.join(name);
         full.is_file()
     })
+}
+
+#[cfg(test)]
+mod marker_tests {
+    use super::*;
+
+    fn workspace_with(files: &[&str]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        for f in files {
+            let path = dir.path().join(f);
+            if let Some(parent) = path.parent() { std::fs::create_dir_all(parent).unwrap(); }
+            std::fs::write(path, "").unwrap();
+        }
+        dir
+    }
+
+    #[test]
+    fn cada_marcador_dice_su_lenguaje() {
+        let casos: &[(&str, Language)] = &[
+            ("Cargo.toml",        Language::Rust),
+            ("pom.xml",           Language::Java),
+            ("build.gradle",      Language::Java),
+            ("build.gradle.kts",  Language::Java),
+            ("package.json",      Language::TypeScript),
+            ("tsconfig.json",     Language::TypeScript),
+            ("pyproject.toml",    Language::Python),
+            ("setup.py",          Language::Python),
+            ("requirements.txt",  Language::Python),
+        ];
+        for (marker, lang) in casos {
+            let ws = workspace_with(&[marker]);
+            assert_eq!(Language::from_markers(ws.path()), vec![*lang], "{marker}");
+        }
+    }
+
+    /// Varios marcadores del mismo lenguaje son **un** lenguaje: un servidor por
+    /// lenguaje empieza por no pedirle dos.
+    #[test]
+    fn varios_lenguajes_salen_una_vez_y_en_el_orden_de_la_tabla() {
+        let ws = workspace_with(&["requirements.txt", "setup.py", "package.json",
+                                  "pom.xml", "build.gradle", "Cargo.toml"]);
+        assert_eq!(Language::from_markers(ws.path()),
+                   vec![Language::Rust, Language::Java, Language::TypeScript, Language::Python]);
+    }
+
+    #[test]
+    fn sin_marcadores_no_hay_lenguajes() {
+        let ws = workspace_with(&["README.md", "main.rs"]);
+        assert!(Language::from_markers(ws.path()).is_empty());
+    }
+
+    /// **Sólo la raíz.** Un `.py` o un `package.json` en un subdirectorio no levanta
+    /// un servidor que nadie va a consultar.
+    #[test]
+    fn un_marcador_en_un_subdirectorio_no_cuenta() {
+        let ws = workspace_with(&["scripts/requirements.txt", "web/package.json"]);
+        assert!(Language::from_markers(ws.path()).is_empty());
+    }
+
+    /// Un directorio que se llama como un marcador no es un marcador.
+    #[test]
+    fn un_directorio_con_nombre_de_marcador_no_cuenta() {
+        let ws = tempfile::tempdir().unwrap();
+        std::fs::create_dir(ws.path().join("Cargo.toml")).unwrap();
+        assert!(Language::from_markers(ws.path()).is_empty());
+    }
+
+    #[test]
+    fn el_nombre_de_un_lenguaje_ida_y_vuelta() {
+        for lang in [Language::Rust, Language::Java, Language::TypeScript, Language::Python] {
+            assert_eq!(Language::from_name(lang.id()), Some(lang));
+        }
+        assert_eq!(Language::from_name("cobol"), None);
+        assert_eq!(Language::from_name("rust-analyzer"), None,
+                   "el nombre es el del lenguaje, no el del servidor");
+    }
 }
 
 #[cfg(test)]
