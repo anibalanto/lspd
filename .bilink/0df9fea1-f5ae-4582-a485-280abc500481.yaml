@@ -2,5 +2,10 @@ kind: governs
 endpoint:
   0:
     link: capture 0fe4b1ad9edf53e9da9a6206ea81365e
+    accepted:
+    - agree:
+      - Anibal
+      link: capture 0fe4b1ad9edf53e9da9a6206ea81365e
+      hash: 83d70f6aa8399148f83981d7e740c2bcf9a76a3bd1932cc11412f873c1703e08
   1:
     link: capture dc121ee7565c6ea1a777152e660a929e
