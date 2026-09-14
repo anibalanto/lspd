@@ -10,6 +10,9 @@ endpoint:
     name: definitions
   1:
     link: capture b3c78ccde45ec0f0a5242337dec5c80d
+    n:
+      1:
+        link: capture 2541358b1b0ef9413b25643bf41c95d9
     accepted:
     - agree:
       - anibal
