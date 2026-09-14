@@ -1,0 +1,6 @@
+file: docs/decisions/2026-09-14.levantar-el-daemon.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Decisión"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "2. Los lenguajes salen de los marcadores del workspace, y `--lang` los dice"))) @target)
