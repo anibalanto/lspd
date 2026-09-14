@@ -10,6 +10,9 @@ endpoint:
     name: los-metodos
   1:
     link: capture 8bd91791cb4bf4800ecbd718cf7b1884
+    n:
+      1:
+        link: capture 36bf5a7a928eb32dac01744ad6b4987a efd8069fdf39159970f30040bc8b6300
     accepted:
     - agree:
       - Anibal
