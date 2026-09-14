@@ -10,6 +10,9 @@ endpoint:
     name: el-workspace-no-viaja
   1:
     link: capture 3dfb439ff26ae01e6753fb83e8c8279a
+    n:
+      1:
+        link: capture 4f358719e10ca0b5bc4fa26f9c23d5b1
     accepted:
     - agree:
       - Anibal
