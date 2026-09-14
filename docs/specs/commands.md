@@ -4,7 +4,7 @@
 
 | Comando | Uso | Qué hace |
 |---|---|---|
-| `start` | `start [--workspace <path>]` | Arranca el daemon en background, con el workspace que se le dice o el directorio actual, e imprime su pid y su endpoint. Si ya hay uno, no hace nada y retorna 1 ([lifecycle.md](concepts/lifecycle.md)). |
+| `start` | `start [--workspace <path>] [--wait [--lang <lenguaje>]... [--timeout <segundos>]]` | Arranca el daemon en background, con el workspace que se le dice o el directorio actual, e imprime su pid y su endpoint. Si ya hay uno, no hace nada y retorna 1. Con `--wait` toma el que haya, calienta los servidores de los lenguajes del workspace —o los de `--lang`— y espera a que estén listos; retorna 1 si alguno no arranca o si vence `--timeout`, y el daemon queda vivo ([lifecycle.md](concepts/lifecycle.md)). |
 | `stop` | sin argumentos | Manda `shutdown` a todos los language servers activos y termina el proceso. Si no hay daemon, lo dice y retorna 1 ([lifecycle.md](concepts/lifecycle.md)). |
 | `status` | sin argumentos | Lista el daemon —pid y endpoint— y sus language servers, cada uno con su estado y cuántas preguntas contestó ([language-servers.md](concepts/language-servers.md)). |
 

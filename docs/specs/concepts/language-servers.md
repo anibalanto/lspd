@@ -17,6 +17,19 @@
 
 Si ninguno de los candidatos está en PATH, la respuesta es un error explícito y no un vacío: `LSP for "rust-analyzer" not found: install one of ["rust-analyzer"]`. Un vacío se leería como *"no hay llamadas"*.
 
+### Los marcadores de la raíz dicen qué lenguajes hay
+
+Calentar pide saber qué servidores levantar antes de que llegue una pregunta. Lo dicen los archivos que marcan un proyecto **en la raíz del workspace**, y sólo ahí:
+
+| Marcador | Lenguaje |
+|---|---|
+| `Cargo.toml` | `rust` |
+| `pom.xml`, `build.gradle`, `build.gradle.kts` | `java` |
+| `package.json`, `tsconfig.json` | `typescript` |
+| `pyproject.toml`, `setup.py`, `requirements.txt` | `python` |
+
+Un workspace con marcadores de varios lenguajes los tiene todos, en el orden de la tabla. Uno sin marcadores no tiene ninguno. No se recorre el árbol: un archivo suelto en un subdirectorio no levanta un servidor.
+
 ### Y la tabla tiene una columna más: qué pide cada servidor en el handshake
 
 La tabla dice qué ejecutable buscar. **Lo que no dice, y hace falta, es qué necesita cada uno para arrancar de verdad**, porque LSP dejó ese pedazo abierto: `initializationOptions` es un campo libre y cada servidor pone ahí lo suyo.
@@ -52,7 +65,7 @@ Y hay una razón de más para que sea explícito: **el que corre `lspd` casi nun
 ### Se levantan a demanda y se reusan
 
 ```
-primera query de un lenguaje
+primera query de un lenguaje, o `warm`
   → detectar ejecutable → spawn vía stdio → handshake LSP → indexando → listo
 
 queries siguientes

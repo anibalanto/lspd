@@ -22,10 +22,19 @@ JSON-RPC 2.0 con **framing newline-delimited**: cada mensaje es un objeto JSON e
 | `symbol_at` | `{file, line, col}` | `SymbolInfo` o `null` |
 | `definitions` | `{file, line, col}` | `[DefinitionInfo]` — dónde está declarado lo que se menciona ahí |
 | `status` | — | `[LspStatus]` |
+| `warm` | `{languages}` | `[WarmInfo]` — los servidores que arrancó o que ya estaban, y los que no pudo |
 | `ping` | — | `"pong"` |
 | `shutdown` | — | `null`, y cierra la conexión |
 
-`CalleeInfo` es `{symbol, name, file, line, col}`; `callees` y `callers` comparten esquema. `SymbolInfo` es `{symbol, name, kind}`. `LspStatus` es `{name, state, queries}`, con `state` en `INDEXING | READY | RUNNING` — ver [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar). `DefinitionInfo` es `{name, file, line, col, end_line, end_col}`.
+`CalleeInfo` es `{symbol, name, file, line, col}`; `callees` y `callers` comparten esquema. `SymbolInfo` es `{symbol, name, kind}`. `LspStatus` es `{name, state, queries}`, con `state` en `INDEXING | READY | RUNNING` — ver [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar). `DefinitionInfo` es `{name, file, line, col, end_line, end_col}`. `WarmInfo` es `{name, error}`, con `name` el mismo que en `LspStatus` y `error` presente sólo en el que no pudo arrancar.
+
+### `warm` arranca los servidores y no espera el handshake
+
+`warm` arranca el servidor de cada lenguaje de `languages` —`rust`, `java`, `typescript` o `python`— **por el mismo camino que una pregunta**: ocupa el mismo lugar en el mapa, así que un servidor que ya está, o que ya está arrancando, no se arranca de nuevo. Contesta apenas quedaron arrancando, sin esperar el handshake: lo que falta lo dice `status`.
+
+Con `languages` vacío, o sin `languages`, el daemon calienta los lenguajes que [los marcadores](language-servers.md#los-marcadores-de-la-raíz-dicen-qué-lenguajes-hay) dicen de su workspace. Un workspace sin marcadores contesta `[]`.
+
+Un lenguaje que no puede arrancar vuelve en la lista con su `error`, y los demás arrancan igual: un ejecutable que no está en PATH, o un lenguaje que no está en la tabla. **Un arranque que falla no deja el lugar tomado**, así que el próximo `warm`, o la próxima pregunta, lo intenta de nuevo.
 
 ### `definitions` es la única pregunta que no es del call graph
 
