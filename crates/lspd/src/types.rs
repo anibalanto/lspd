@@ -38,6 +38,17 @@ pub struct LspStatus {
     pub queries: u64,
 }
 
+/// Lo que `warm` dice de cada lenguaje que le pidieron.
+///
+/// `name` es el mismo que en [`LspStatus`], para que quien calienta pueda seguir el
+/// arranque en `status`. `error` está sólo en el que no pudo arrancar.
+#[derive(Debug, Clone, Serialize)]
+pub struct WarmInfo {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct RpcRequest {
     pub jsonrpc: String,

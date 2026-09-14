@@ -8,7 +8,7 @@ use tokio::sync::RwLock;
 use crate::language::Language;
 use crate::lsp_client::LspClient;
 use crate::language::Readiness;
-use crate::types::{CalleeInfo, DefinitionInfo, LspStatus, SymbolInfo};
+use crate::types::{CalleeInfo, DefinitionInfo, LspStatus, SymbolInfo, WarmInfo};
 
 /// El lugar de un lenguaje en el mapa, que se ocupa **antes** de que el servidor
 /// exista.
@@ -68,14 +68,17 @@ pub struct LspManager {
     /// es matar al servidor: el `Arc<LspClient>` que el slot guarda es el último, y
     /// [`Drop`](LspClient) hace el resto. Ver `concepts/language-servers.md` § *"Uno
     /// por lenguaje es una invariante"*.
-    clients:   RwLock<HashMap<Language, Arc<LspSlot>>>,
+    ///
+    /// Va en un `Arc` porque la task que arranca un servidor es la que libera su lugar
+    /// si el arranque falla, y esa task vive más que la llamada que la lanzó.
+    clients:   Arc<RwLock<HashMap<Language, Arc<LspSlot>>>>,
 }
 
 impl LspManager {
     pub fn new(workspace: PathBuf) -> Arc<Self> {
         Arc::new(Self {
             workspace,
-            clients: RwLock::new(HashMap::new()),
+            clients: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -87,10 +90,23 @@ impl LspManager {
         let lang = Language::from_extension(ext)
             .ok_or_else(|| anyhow::anyhow!("no LSP for extension .{ext}"))?;
 
+        self.slot_for(lang).await?.get().await
+    }
+
+    /// El lugar de un lenguaje en el mapa: el que ya está, o uno nuevo con su servidor
+    /// arrancando. **No espera el handshake**: quien necesita el cliente espera el
+    /// slot, y quien sólo quiere que arranque —`warm`— no.
+    ///
+    /// Es el único camino por el que un servidor arranca, así que una pregunta y un
+    /// `warm` que lleguen juntos encuentran el mismo lugar.
+    ///
+    /// Un ejecutable que no está en PATH falla acá, sin ocupar el lugar: se sabe antes
+    /// de lanzar nada, y quien calienta lo recibe en su respuesta y no más tarde.
+    async fn slot_for(&self, lang: Language) -> anyhow::Result<Arc<LspSlot>> {
         {
             let r = self.clients.read().await;
             if let Some(c) = r.get(&lang) {
-                return c.get().await;
+                return Ok(Arc::clone(c));
             }
         }
 
@@ -103,38 +119,73 @@ impl LspManager {
         // conserva uno y descarta los otros, y **eso son N-1 servidores de más**: con
         // `jdtls` el handshake son segundos y `check` pregunta en paralelo, así que la
         // ventana no es teórica. Es lo que dejó nueve JVMs vivas para un solo daemon.
-        let slot = {
-            let mut w = self.clients.write().await;
-            // Entre el `read` de arriba y este `write` puede haber entrado otro.
-            if let Some(c) = w.get(&lang) {
-                Arc::clone(c)
-            } else {
-                let slot = Arc::new(LspSlot::pending());
-                w.insert(lang, Arc::clone(&slot));
-                let workspace = self.workspace.clone();
-                let mine = Arc::clone(&slot);
-                // El arranque va afuera de todo lock: sostenerlo durante el handshake
-                // dejaría al daemon entero sin poder contestar `status`.
-                tokio::spawn(async move {
-                    mine.settle(LspClient::spawn(lang, &workspace).await);
-                });
-                slot
+        let mut w = self.clients.write().await;
+        // Entre el `read` de arriba y este `write` puede haber entrado otro.
+        if let Some(c) = w.get(&lang) {
+            return Ok(Arc::clone(c));
+        }
+        lang.find_executable()?;
+
+        let slot = Arc::new(LspSlot::pending());
+        w.insert(lang, Arc::clone(&slot));
+        let workspace = self.workspace.clone();
+        let clients = Arc::clone(&self.clients);
+        let mine = Arc::clone(&slot);
+        // El arranque va afuera de todo lock: sostenerlo durante el handshake
+        // dejaría al daemon entero sin poder contestar `status`.
+        tokio::spawn(async move {
+            let started = LspClient::spawn(lang, &workspace).await;
+            // **Un arranque que falló no deja el lugar tomado**, y lo libera esta task
+            // y no quien lo espera: puede no haber nadie esperando. Si quedara, el
+            // error se volvería permanente: instalar el ejecutable que faltaba no
+            // cambiaría nada hasta reiniciar el daemon.
+            //
+            // Se saca **antes** de avisar, así quien recibe el error ya encuentra el
+            // lugar libre si vuelve a pedir.
+            if started.is_err() {
+                let mut w = clients.write().await;
+                if w.get(&lang).is_some_and(|c| Arc::ptr_eq(c, &mine)) {
+                    w.remove(&lang);
+                }
             }
+            mine.settle(started);
+        });
+        Ok(slot)
+    }
+
+    /// Arranca el servidor de cada lenguaje, y vuelve sin esperar ningún handshake.
+    ///
+    /// Sin lenguajes, los dicen los marcadores del workspace. Cada lenguaje vuelve
+    /// una vez, con el nombre de su servidor —el mismo que da [`status`](Self::status)—
+    /// y con el error si no pudo arrancar.
+    pub async fn warm(&self, languages: &[String]) -> Vec<WarmInfo> {
+        let wanted: Vec<Result<Language, &str>> = if languages.is_empty() {
+            Language::from_markers(&self.workspace).into_iter().map(Ok).collect()
+        } else {
+            languages.iter()
+                .map(|n| Language::from_name(n).ok_or(n.as_str()))
+                .collect()
         };
 
-        let started = slot.get().await;
-
-        // **Un arranque que falló no deja el lugar tomado.** Si quedara, el error se
-        // volvería permanente: instalar el ejecutable que faltaba no cambiaría nada
-        // hasta reiniciar el daemon.
-        if started.is_err() {
-            let mut w = self.clients.write().await;
-            if let Some(c) = w.get(&lang) {
-                if Arc::ptr_eq(c, &slot) { w.remove(&lang); }
+        let mut out: Vec<WarmInfo> = Vec::new();
+        for w in wanted {
+            let info = match w {
+                Ok(lang) => WarmInfo {
+                    name:  lang.name().to_string(),
+                    error: self.slot_for(lang).await.err().map(|e| e.to_string()),
+                },
+                Err(name) => WarmInfo {
+                    name:  name.to_string(),
+                    error: Some(format!(
+                        "no hay language server para `{name}`: los lenguajes son {}",
+                        Language::ALL.map(|l| l.id()).join(", "))),
+                },
+            };
+            if !out.iter().any(|o| o.name == info.name) {
+                out.push(info);
             }
         }
-
-        started
+        out
     }
 
     pub async fn callees(&self, file: &str, line: u32, col: u32) -> anyhow::Result<Vec<CalleeInfo>> {

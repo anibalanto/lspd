@@ -160,6 +160,21 @@ async fn dispatch(
             let status = manager.status().await;
             (RpcResponse::ok(id, serde_json::json!(status)), false)
         }
+        "warm"      => {
+            /// Sin `languages`, o vacío, los dice el workspace.
+            #[derive(serde::Deserialize)]
+            struct Warm { #[serde(default)] languages: Vec<String> }
+
+            let p: Warm = match req.params {
+                serde_json::Value::Null => Warm { languages: vec![] },
+                v => match serde_json::from_value(v) {
+                    Ok(p) => p,
+                    Err(e) => return (RpcResponse::invalid_params(id, e.to_string()), false),
+                },
+            };
+            let warmed = manager.warm(&p.languages).await;
+            (RpcResponse::ok(id, serde_json::json!(warmed)), false)
+        }
         "shutdown"  => {
             shutdown.notify_one();
             (RpcResponse::ok(id, serde_json::Value::Null), true)
