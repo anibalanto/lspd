@@ -17,7 +17,7 @@ lspd start [--workspace <path>] [--wait [--lang <lenguaje>]... [--timeout <segun
 | `--lang` | los marcadores del workspace | Qué servidores calentar: `rust`, `java`, `typescript` o `python`. Repetible. Sólo con `--wait`. |
 | `--timeout` | sin tope | Cuántos segundos se espera, como mucho. Sólo con `--wait`. |
 
-Arranca el daemon en background. Si ya hay uno corriendo, **no hace nada y retorna 1** — arrancar dos sobre el mismo socket dejaría al segundo sin poder escuchar, y decirlo es más útil que fallar al bindear.
+Arranca el daemon en background. Si ya hay uno corriendo, sin `--wait` **no hace nada y retorna 1** — arrancar dos sobre el mismo socket dejaría al segundo sin poder escuchar, y decirlo es más útil que fallar al bindear.
 
 ```
 lspd started  pid=12345  endpoint=~/.lspd/accreta-impl-1c8540.sock
