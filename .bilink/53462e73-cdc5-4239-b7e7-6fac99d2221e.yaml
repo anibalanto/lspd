@@ -4,17 +4,20 @@ endpoint:
     link: capture cae3378b069dd3adc756b54c590db991
     accepted:
     - agree:
-      - anibal
+      - Anibal
       link: capture cae3378b069dd3adc756b54c590db991
-      hash: 3188368e523a558560a083bcfeb6d797f2f029af544d46010c39daae7c7b6b7f
+      hash: 8e0dc04f9713cbc6aae8a0708fa7027e94b8d565c1744930d7b8643d4214e7bc
     name: los-metodos
   1:
     link: capture 8bd91791cb4bf4800ecbd718cf7b1884
+    n:
+      1:
+        link: capture 36bf5a7a928eb32dac01744ad6b4987a efd8069fdf39159970f30040bc8b6300
     accepted:
     - agree:
-      - anibal
+      - Anibal
       link: capture 8bd91791cb4bf4800ecbd718cf7b1884
-      hash: 9a98f0a9cb4df435692804f9727580bc5933d6388651741add583a6cab0baaa3
-      hash_ast: f67feacf3595e30ddaf6fac994a629c1f0d3a49c63eae1790977eb87b975b428
+      hash: ec4b3306c5c9db4c28dac050ebb536286097bb36a35fd008670555d67bdb2069
+      hash_ast: 07812a7d66b16b82b145a061d8ccfc306af1afc84b3d57559288730e9739fb89
       n: declined
     name: ipc::dispatch

@@ -10,6 +10,9 @@ endpoint:
     name: el-framing
   1:
     link: capture 85c498e1cf7f8063a6c265e864e8c77c
+    n:
+      1:
+        link: capture 36bf5a7a928eb32dac01744ad6b4987a 7a5319dd5b0c5810afba2b2890a18897
     accepted:
     - agree:
       - anibal

@@ -10,6 +10,9 @@ endpoint:
     name: la-tabla
   1:
     link: capture c7dec5c89c3526c8468c6da77880fd02
+    n:
+      1:
+        link: capture 8854d7d6c05d405ee608ce72ebf289b7
     accepted:
     - agree:
       - anibal

@@ -10,6 +10,9 @@ endpoint:
     name: not-ready
   1:
     link: capture 8fa34f3df7d931d725b0c161ea11df97
+    n:
+      1:
+        link: capture edd40c8da102112fa2125733432f1b74
     accepted:
     - agree:
       - anibal

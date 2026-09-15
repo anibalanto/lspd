@@ -10,6 +10,9 @@ endpoint:
     name: hacia-abajo
   1:
     link: capture 197dfb13a820e277b030d2f16a243af8
+    n:
+      1:
+        link: capture 50e2837e161e1ebab760fe3b74fb0bd3
     accepted:
     - agree:
       - anibal

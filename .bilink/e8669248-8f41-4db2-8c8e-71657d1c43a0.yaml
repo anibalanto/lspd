@@ -1,13 +1,12 @@
 kind: governs
 endpoint:
   0:
-    link: capture d500d23ab875b65057e8adb80d802862
+    link: capture 954cece3cfb786549f125b135c93541c
     accepted:
     - agree:
       - Anibal
-      link: capture d500d23ab875b65057e8adb80d802862
-      hash: 567703e583444f510bf1368fb1604f4d618d5c5dc2329540ea3ea69b93361ba3
-    name: fila-start
+      link: capture 954cece3cfb786549f125b135c93541c
+      hash: fdaeba3d1f9eafac9d4ae75ba227476b793366592989dc0ef0e54133a178b08c
   1:
     link: capture 1a24c7ef2affa5ab54c97d9feedf9d62
     n:
@@ -19,5 +18,8 @@ endpoint:
       link: capture 1a24c7ef2affa5ab54c97d9feedf9d62
       hash: 590ab0100ae66ee30e096856fea5d08fec4497adce2a240b98e3f50deb8ca723
       hash_ast: 9610556a0c169bb2e41e5df8d533749b513ad2dd9533bf2efcbdd33d80ba8b40
-      n: declined
-    name: start
+      n:
+        1:
+          link: capture 734b6dcb8f33b3a2e3d002613aa640c8
+          hash: 201506a1327c395aab0592d4d5a4ab8df6d6d9cd9c9c5172044b10403a30889c
+          hash_ast: 89082c3aba696b32706c8bd0e97497c12ac30f9356ed718eed13a1a70035169a

@@ -1,13 +1,12 @@
 kind: governs
 endpoint:
   0:
-    link: capture 91155fbf34d636ecd5da412001a203f6
+    link: capture 5fe090c71a21f80bea025718a68161c3
     accepted:
     - agree:
-      - anibal
-      link: capture 91155fbf34d636ecd5da412001a203f6
-      hash: 2890931af3d34545ee25c47cf2ec91523b9606aa9b60b9f9047077dda363ce8e
-    name: un-servidor-por-lenguaje
+      - Anibal
+      link: capture 5fe090c71a21f80bea025718a68161c3
+      hash: 40d86a80dd335953b52dc8b433a98dcd285771b83ce08dbc6957d86f8bdabe09
   1:
     link: capture 3d3652bc4202da556555c97d5a472461
     n:
@@ -24,4 +23,3 @@ endpoint:
           link: capture 9176b23f7f3fb895cbd3f04463bf3c38 c01864e434f8938983ba9cd7e41b5044
           hash: 59ea9b410b6d69bb5ae4eb43d55330335df47f1f79e01ae52611b3b8fe22dde0
           hash_ast: 49beae4c51b513d0a58faf76a4fc8c2686ce1b6acb7327c4491fb38a723eafa3
-    name: client_for
