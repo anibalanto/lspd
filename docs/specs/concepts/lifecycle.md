@@ -15,7 +15,7 @@ lspd start [--workspace <path>] [--wait [--lang <lenguaje>]... [--stall <segundo
 | `--workspace` | cwd | Raíz del workspace. Los language servers se inicializan con este directorio. |
 | `--wait` | — | Deja los servidores del workspace listos antes de volver. |
 | `--lang` | los marcadores del workspace | Qué servidores calentar: `rust`, `java`, `typescript` o `python`. Repetible. Sólo con `--wait`. |
-| `--stall` | 120 | Cuántos segundos se espera a un servidor `INDEXING` que no reporta progreso. Sólo con `--wait`. |
+| `--stall` | 120 | Cuántos segundos se espera a un servidor `STARTING` o `INDEXING` que no reporta progreso. Sólo con `--wait`. |
 
 Arranca el daemon en background. Si ya hay uno corriendo, sin `--wait` **no hace nada y retorna 1** — arrancar dos sobre el mismo socket dejaría al segundo sin poder escuchar, y decirlo es más útil que fallar al bindear.
 
@@ -43,9 +43,9 @@ lspd started  pid=12345  endpoint=~/.lspd/accreta-impl-1c8540.sock
   rust-analyzer               READY     412s
 ```
 
-**El avance va por stderr**: una línea por servidor cada vez que cambia de estado, y otra cada 30 segundos mientras siga `INDEXING`, con el tiempo que va desde que empezó la espera.
+**El avance va por stderr**: una línea por servidor cada vez que cambia de estado, y otra cada 30 segundos mientras siga `STARTING` o `INDEXING`, con el tiempo que va desde que empezó la espera.
 
-**Un servidor `RUNNING` no se espera.** No informa readiness, así que no hay a qué esperar: cuenta como listo apenas aparece.
+**Un servidor `RUNNING` no se espera.** No informa readiness, así que no hay a qué esperar: cuenta como listo apenas aparece. **Un servidor `STARTING` sí**: todavía está en el handshake, y puede caerse ahí.
 
 Si los marcadores no dicen ningún lenguaje, `start --wait` lo dice por stderr, no calienta nada y retorna 0.
 
@@ -57,11 +57,22 @@ Si los marcadores no dicen ningún lenguaje, `start --wait` lo dice por stderr, 
 
 Un servidor que no arranca —el ejecutable no está, o su proceso termina antes de quedar listo, en el handshake o indexando— es un error de ese lenguaje: `start --wait` dice cuál y por qué por stderr, sigue esperando a los demás, y al final **retorna 1**. En CI eso tiene que verse, y no degradar en silencio.
 
-Cuando el ejecutable no está, el porqué es el error que devuelve `warm`. Cuando el proceso termina después de arrancar, el daemon lo saca de su mapa y no guarda el porqué: `start --wait` lo ve desaparecer de `status` y dice eso.
+Cuando el ejecutable no está, el porqué es el error que devuelve `warm`. Cuando el `initialize` falla o el proceso termina, `status` lo muestra [`FAILED`](language-servers.md#un-servidor-que-arranca-está-starting-y-uno-que-se-cae-queda-failed-con-su-porqué), y `start --wait` imprime su `error`, con lo que el servidor dijo en stderr indentado debajo:
+
+```
+$ lspd start --wait --lang typescript
+lspd started  pid=12345  endpoint=~/.lspd/code-work-sge-3d58d7.sock
+  typescript-language-server  STARTING  0s
+  typescript-language-server  FAILED    0s
+  typescript-language-server no arrancó: LSP initialize: ServiceStopped
+      error: required option '--stdio' not specified
+```
+
+Un servidor que desaparece de `status` sin quedar `FAILED` —un daemon que no lo dice, u otro arranque que ya lo reemplazó— también cuenta como caído, sin porqué.
 
 ### Un servidor que deja de reportar progreso deja de esperarse, y el daemon sigue
 
-La espera no tiene tope total: **mientras un servidor `INDEXING` reporte progreso, se lo espera lo que haga falta.** Lo que la corta es el silencio. Un servidor que sigue `INDEXING` y lleva `--stall` segundos sin reportar progreso —lo que `status` dice en `since_progress_ms`— deja de esperarse: `start --wait` dice cuál y hace cuánto, sigue esperando a los demás, **retorna 1 y deja el daemon vivo**. Lo que ya indexó sirve a la corrida siguiente, y apagarlo es de `stop`.
+La espera no tiene tope total: **mientras un servidor `STARTING` o `INDEXING` reporte progreso, se lo espera lo que haga falta.** Lo que la corta es el silencio. Un servidor que sigue `STARTING` o `INDEXING` y lleva `--stall` segundos sin reportar progreso —lo que `status` dice en `since_progress_ms`— deja de esperarse: `start --wait` dice cuál y hace cuánto, sigue esperando a los demás, **retorna 1 y deja el daemon vivo**. Lo que ya indexó sirve a la corrida siguiente, y apagarlo es de `stop`.
 
 La ventana por defecto es de 120 segundos. Medido el 2026-09-16, con caché fría: el silencio más largo de `rust-analyzer` mientras indexa fue de 6,8 s sobre el impl de lspd, 2,3 s sobre el de bilinker y 2,0 s sobre el de lattice; el de `jdtls` importando en frío un repo de 3837 archivos Java, listo a los 82 s, fue de 5 s, con `status` consultado cada 2 s.
 
@@ -84,11 +95,13 @@ language servers:
   rust-analyzer               READY     queries=147  progreso hace 212s
   jdtls                       INDEXING  queries=3    progreso hace 1s
   typescript-language-server  RUNNING   queries=32   progreso hace 540s
+  jedi-language-server        FAILED    queries=0    progreso hace 12s
+      el proceso de jedi-language-server terminó
 ```
 
 Un daemon recién arrancado no tiene ninguno: se levantan **por lenguaje y a demanda**, la primera vez que llega una pregunta sobre un archivo de ese lenguaje. `(ninguno arrancado todavía)` es un estado normal y no un problema.
 
-Los tres estados están en [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar). El que hay que saber leer es el tercero: **`RUNNING` no es peor que `READY`, es que ese servidor no informa readiness** y por eso `lspd` no la afirma. Un `INDEXING` con `queries` arriba de cero es normal y es lo que este comando existe para mostrar — son las preguntas que se contestaron con `-32001`, y dicen cuándo conviene volver.
+Los tres estados de la readiness están en [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar), y `STARTING` y `FAILED` en [el ciclo de un servidor](language-servers.md#un-servidor-que-arranca-está-starting-y-uno-que-se-cae-queda-failed-con-su-porqué): un `FAILED` imprime su `error` indentado debajo. El que hay que saber leer es el tercero: **`RUNNING` no es peor que `READY`, es que ese servidor no informa readiness** y por eso `lspd` no la afirma. Un `INDEXING` con `queries` arriba de cero es normal y es lo que este comando existe para mostrar — son las preguntas que se contestaron con `-32001`, y dicen cuándo conviene volver.
 
 **`progreso hace` dice cuánto pasó desde la última señal de avance del servidor**: un `$/progress`, o una de las notificaciones de readiness. Un servidor que todavía no mandó ninguna cuenta desde que arrancó. Es lo que distingue un `INDEXING` que avanza de uno estancado.
 

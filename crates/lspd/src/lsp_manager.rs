@@ -65,6 +65,18 @@ impl LspSlot {
     }
 }
 
+/// Un servidor que no arrancó, o cuyo proceso terminó: por qué, y desde cuándo.
+struct Failure {
+    error: String,
+    at:    std::time::Instant,
+}
+
+/// El estado de un servidor en pleno handshake: todavía no dijo nada de sí mismo.
+const STARTING: &str = "STARTING";
+
+/// El estado de un servidor que no arrancó o se cayó.
+const FAILED: &str = "FAILED";
+
 pub struct LspManager {
     workspace: PathBuf,
     /// **El censo de lo que corre, y el dueño de cada proceso.** Sacar un slot de acá
@@ -75,13 +87,17 @@ pub struct LspManager {
     /// Va en un `Arc` porque la task que arranca un servidor es la que libera su lugar
     /// si el arranque falla, y esa task vive más que la llamada que la lanzó.
     clients:   Arc<RwLock<HashMap<Language, Arc<LspSlot>>>>,
+    /// **Lo que falló, para que `status` lo diga.** No ocupa el lugar del lenguaje: el
+    /// arranque siguiente lo intenta de nuevo, y lo reemplaza.
+    failures:  Arc<RwLock<HashMap<Language, Failure>>>,
 }
 
 impl LspManager {
     pub fn new(workspace: PathBuf) -> Arc<Self> {
         Arc::new(Self {
             workspace,
-            clients: Arc::new(RwLock::new(HashMap::new())),
+            clients:  Arc::new(RwLock::new(HashMap::new())),
+            failures: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -131,8 +147,11 @@ impl LspManager {
 
         let slot = Arc::new(LspSlot::pending());
         w.insert(lang, Arc::clone(&slot));
+        // El arranque nuevo reemplaza a lo que falló antes.
+        self.failures.write().await.remove(&lang);
         let workspace = self.workspace.clone();
         let clients = Arc::clone(&self.clients);
+        let failures = Arc::clone(&self.failures);
         let mine = Arc::clone(&slot);
         // El arranque va afuera de todo lock: sostenerlo durante el handshake
         // dejaría al daemon entero sin poder contestar `status`.
@@ -146,20 +165,31 @@ impl LspManager {
             // Se saca **antes** de avisar, así quien recibe el error ya encuentra el
             // lugar libre si vuelve a pedir.
             match &started {
-                Err(_) => release(&clients, lang, &Arc::downgrade(&mine)).await,
+                Err(e) => {
+                    let failed = release(&clients, lang, &Arc::downgrade(&mine)).await;
+                    if failed { record(&clients, &failures, lang, e.to_string()).await; }
+                }
                 // **Y uno que arrancó y después se muere, tampoco.** Sin esto quedaba
                 // en el mapa con el último estado que dijo —`INDEXING` para siempre—,
                 // y quien lo esperaba no tenía cómo saber que ya no hay nadie.
                 //
                 // La vigilancia guarda un `Weak`: si guardara el slot, mantendría
                 // vivo al cliente, y soltar el cliente es lo que mata al proceso.
+                //
+                // Y deja dicho por qué, con lo último que escribió en stderr.
                 Ok(client) => {
                     let exited = client.exited();
+                    let stderr = Arc::clone(&client.stderr);
                     let clients = Arc::clone(&clients);
+                    let failures = Arc::clone(&failures);
                     let slot = Arc::downgrade(&mine);
                     tokio::spawn(async move {
                         exited.await;
-                        release(&clients, lang, &slot).await;
+                        if release(&clients, lang, &slot).await {
+                            let error = stderr.explain(
+                                &format!("el proceso de {} terminó", lang.name())).await;
+                            record(&clients, &failures, lang, error).await;
+                        }
                     });
                 }
             }
@@ -262,41 +292,77 @@ impl LspManager {
 
     pub async fn status(&self) -> Vec<LspStatus> {
         let r = self.clients.read().await;
-        r.iter()
+        let mut out: Vec<LspStatus> = r.iter()
             .map(|(lang, slot)| match slot.ready() {
                 Some(c) => LspStatus {
                     name:    c.lang.name().to_string(),
                     state:   c.readiness.get().as_str().to_string(),
                     queries: c.queries.load(Ordering::Relaxed),
                     since_progress_ms: c.progress.since().as_millis() as u64,
+                    error:   None,
                 },
                 // **Un servidor en pleno handshake se reporta**, porque está corriendo
-                // y el mapa lo tiene. Su estado es el que ese mismo cliente va a
-                // reportar un instante después: `status` no espera a nadie —quien
-                // pregunta cómo viene el arranque no puede quedarse colgado en él— y
-                // por eso no hay un cuarto valor de readiness que signifique
-                // *"arrancando"*.
+                // y el mapa lo tiene, y se reporta `STARTING`: `status` no espera a
+                // nadie —quien pregunta cómo viene el arranque no puede quedarse
+                // colgado en él—, y el estado inicial de su readiness no vale
+                // todavía. Un `RUNNING` acá afirmaría que un servidor que se va a caer
+                // en el handshake ya está arriba.
                 None => LspStatus {
                     name:    lang.name().to_string(),
-                    state:   Readiness::initial(*lang).as_str().to_string(),
+                    state:   STARTING.to_string(),
                     queries: 0,
                     since_progress_ms: slot.started.elapsed().as_millis() as u64,
+                    error:   None,
                 },
             })
-            .collect()
+            .collect();
+
+        // Lo que falló se dice, salvo que otro arranque ya lo haya reemplazado.
+        let f = self.failures.read().await;
+        out.extend(f.iter()
+            .filter(|(lang, _)| !r.contains_key(lang))
+            .map(|(lang, failure)| LspStatus {
+                name:    lang.name().to_string(),
+                state:   FAILED.to_string(),
+                queries: 0,
+                since_progress_ms: failure.at.elapsed().as_millis() as u64,
+                error:   Some(failure.error.clone()),
+            }));
+        out
     }
 }
 
 /// Saca del mapa el lugar de `lang`, **si todavía es ese**: entre que el servidor
-/// murió y esta llamada, otro pudo haber ocupado el lenguaje de nuevo.
+/// murió y esta llamada, otro pudo haber ocupado el lenguaje de nuevo. Dice si lo sacó.
+///
+/// Un lugar que ya no está lo sacó `shutdown`, y ese cierre no es una falla.
 async fn release(
     clients: &RwLock<HashMap<Language, Arc<LspSlot>>>,
     lang:    Language,
     slot:    &std::sync::Weak<LspSlot>,
-) {
+) -> bool {
     let mut w = clients.write().await;
     if w.get(&lang).is_some_and(|c| std::ptr::eq(Arc::as_ptr(c), slot.as_ptr())) {
         w.remove(&lang);
+        true
+    } else {
+        false
+    }
+}
+
+/// Anota por qué falló `lang`, **si nadie lo volvió a arrancar mientras tanto**.
+///
+/// Explicar la falla lleva un momento —se espera el stderr—, y en ese momento otra
+/// pregunta pudo haber arrancado el lenguaje de nuevo: esa falla ya no es la suya.
+async fn record(
+    clients:  &RwLock<HashMap<Language, Arc<LspSlot>>>,
+    failures: &RwLock<HashMap<Language, Failure>>,
+    lang:     Language,
+    error:    String,
+) {
+    let r = clients.read().await;
+    if !r.contains_key(&lang) {
+        failures.write().await.insert(lang, Failure { error, at: std::time::Instant::now() });
     }
 }
 

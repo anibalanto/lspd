@@ -87,8 +87,12 @@ impl Language {
         }
     }
 
-    /// Con cuánta memoria se lanza este servidor. La tercera casilla de la tabla.
+    /// Con qué argumentos se lanza este servidor. La tercera casilla de la tabla.
     ///
+    /// **`typescript-language-server` no habla por stdio si no se lo piden**: sin
+    /// `--stdio` termina apenas arranca. Los otros lo hacen solos.
+    ///
+    /// Y **con cuánta memoria**, que es lo que lleva `jdtls`.
     /// **Un techo que no se fija no es "sin techo": es el que el runtime del servidor
     /// calcule solo.** La JVM de `jdtls` fija su heap máximo en un cuarto de la RAM de
     /// la máquina —7,8 GB en una de 32— y arranca reservando 1 GB, y ninguno de los
@@ -100,14 +104,15 @@ impl Language {
     /// igual en las dos, que es lo que se le pide a un límite.
     ///
     /// Los otros tres no exponen un techo y el suyo no crece con la máquina, así que
-    /// la fila va vacía y eso no es una omisión.
+    /// de memoria no llevan nada, y eso no es una omisión.
     pub fn spawn_args(&self) -> &'static [&'static str] {
         match self {
             // El launcher de `jdtls` pasa los suyos con `=`, y ya pone `-Xms1G` de
             // piso: 2G deja lugar para un proyecto real sin que el techo dependa de
             // en qué máquina cayó.
-            Self::Java => &["--jvm-arg=-Xmx2G"],
-            _          => &[],
+            Self::Java       => &["--jvm-arg=-Xmx2G"],
+            Self::TypeScript => &["--stdio"],
+            _                => &[],
         }
     }
 
@@ -353,11 +358,18 @@ mod spawn_args_tests {
                 "jdtls sin -Xmx hereda un cuarto de la RAM de la máquina: {args:?}");
     }
 
-    /// Los otros no exponen un techo, y la fila vacía es el dato — no una fila que
-    /// falta.
+    /// **`typescript-language-server` no habla por stdio si no se lo piden**: sin
+    /// `--stdio` termina apenas arranca, con `required option '--stdio' not specified`.
     #[test]
-    fn los_que_no_exponen_techo_se_lanzan_pelados() {
-        for lang in [Language::Rust, Language::TypeScript, Language::Python] {
+    fn typescript_se_lanza_con_stdio() {
+        assert_eq!(Language::TypeScript.spawn_args(), &["--stdio"]);
+    }
+
+    /// Los otros hablan por stdio sin que se lo pidan y no exponen un techo, y la fila
+    /// vacía es el dato — no una fila que falta.
+    #[test]
+    fn los_que_no_piden_nada_se_lanzan_pelados() {
+        for lang in [Language::Rust, Language::Python] {
             assert!(lang.spawn_args().is_empty(), "{lang:?} no debería llevar args");
         }
     }
