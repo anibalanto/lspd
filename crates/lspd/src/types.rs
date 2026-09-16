@@ -116,6 +116,15 @@ impl RpcResponse {
         Self::err(id, -32001, msg)
     }
 
+    /// En esa posición no hay un ítem de call hierarchy.
+    ///
+    /// **Código propio y no `server_error`**: el servidor no falló, la pregunta cayó
+    /// donde no hay llamadas que dar. Y no es `[]`, que diría que nadie llama a algo
+    /// que el servidor no encontró.
+    pub fn no_call_hierarchy(id: serde_json::Value, msg: String) -> Self {
+        Self::err(id, -32002, msg)
+    }
+
     fn err(id: serde_json::Value, code: i32, message: String) -> Self {
         Self { jsonrpc: "2.0".into(), id, result: None, error: Some(RpcError { code, message }) }
     }
@@ -139,5 +148,11 @@ mod codigos {
     fn not_ready_is_minus_32001() {
         let r = RpcResponse::not_ready(serde_json::json!(1), "INDEXING".into());
         assert_eq!(r.error.expect("es un error").code, -32001);
+    }
+
+    #[test]
+    fn no_call_hierarchy_is_minus_32002() {
+        let r = RpcResponse::no_call_hierarchy(serde_json::json!(1), "nada ahí".into());
+        assert_eq!(r.error.expect("es un error").code, -32002);
     }
 }

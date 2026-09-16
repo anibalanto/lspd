@@ -10,6 +10,7 @@ use async_lsp::lsp_types::*;
 use tokio::sync::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+use crate::documents::{language_id, DocSync, OpenDocuments};
 use crate::language::{Language, ProgressClock, Readiness, ReadinessCell};
 use crate::types::{CalleeInfo, DefinitionInfo, SymbolInfo};
 
@@ -133,7 +134,31 @@ pub struct LspClient {
     closed:        tokio::sync::watch::Receiver<bool>,
     /// Lo último que dijo en stderr.
     pub stderr:    Arc<StderrTail>,
+    /// Lo que se le mandó de cada documento abierto.
+    documents:     Mutex<OpenDocuments>,
 }
+
+/// En esa posición el servidor no devolvió ningún ítem de call hierarchy.
+///
+/// **Tipo propio**, como `NotReady`, porque se contesta con su propio código: no es
+/// una falla del servidor, y tampoco es `[]`, que diría que nadie llama a un símbolo
+/// que el servidor no encontró.
+#[derive(Debug)]
+pub struct NoCallHierarchy {
+    pub lang: &'static str,
+    pub file: String,
+    pub line: u32,
+    pub col:  u32,
+}
+
+impl std::fmt::Display for NoCallHierarchy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} no encontró un símbolo con llamadas en {}:{}:{} (0-based)",
+               self.lang, self.file, self.line, self.col)
+    }
+}
+
+impl std::error::Error for NoCallHierarchy {}
 
 impl LspClient {
     pub async fn spawn(lang: Language, workspace: &Path) -> Result<Arc<Self>> {
@@ -302,6 +327,7 @@ impl LspClient {
             progress,
             closed,
             stderr,
+            documents: Mutex::new(OpenDocuments::default()),
         }))
     }
 
@@ -318,25 +344,9 @@ impl LspClient {
         self.queries.fetch_add(1, Ordering::Relaxed);
 
         let uri = self.file_url(file)?;
-        // **Sin `did_open`.** El servidor corre en esta máquina, arrancado parado en
-        // el workspace y con sus raíces declaradas: ya puede abrir el archivo solo.
-        // `did_open` existe en LSP porque un editor tiene buffers sin guardar, y acá
-        // no hay ninguno — el disco es la fuente de verdad de las dos puntas, así que
-        // reenviarle el contenido no sincronizaba nada.
+        self.open(file, &uri).await?;
+        let items = self.prepare_call_hierarchy(uri, file, line, col).await?;
         let mut server = self.server.clone();
-
-        let items = server
-            .prepare_call_hierarchy(CallHierarchyPrepareParams {
-                text_document_position_params: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier { uri },
-                    position: Position { line, character: col },
-                },
-                work_done_progress_params: Default::default(),
-            })
-            .await
-            .map_err(|e| anyhow::anyhow!("prepareCallHierarchy: {e:?}"))?
-            .unwrap_or_default();
-
         let mut result = Vec::new();
 
         for item in items {
@@ -374,20 +384,9 @@ impl LspClient {
         self.queries.fetch_add(1, Ordering::Relaxed);
 
         let uri = self.file_url(file)?;
+        self.open(file, &uri).await?;
+        let items = self.prepare_call_hierarchy(uri, file, line, col).await?;
         let mut server = self.server.clone();
-
-        let items = server
-            .prepare_call_hierarchy(CallHierarchyPrepareParams {
-                text_document_position_params: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier { uri },
-                    position: Position { line, character: col },
-                },
-                work_done_progress_params: Default::default(),
-            })
-            .await
-            .map_err(|e| anyhow::anyhow!("prepareCallHierarchy: {e:?}"))?
-            .unwrap_or_default();
-
         let mut result = Vec::new();
 
         for item in items {
@@ -425,6 +424,7 @@ impl LspClient {
         self.queries.fetch_add(1, Ordering::Relaxed);
 
         let uri = self.file_url(file)?;
+        self.open(file, &uri).await?;
         let mut server = self.server.clone();
 
         let hover = server
@@ -456,6 +456,7 @@ impl LspClient {
         self.queries.fetch_add(1, Ordering::Relaxed);
 
         let uri = self.file_url(file)?;
+        self.open(file, &uri).await?;
         let mut server = self.server.clone();
 
         let resp = server
@@ -499,6 +500,66 @@ impl LspClient {
         let mut server = self.server.clone();
         let _ = server.shutdown(()).await;
         let _ = server.exit(());
+    }
+
+    /// Deja el documento en el servidor como está en disco, si este servidor lo
+    /// necesita abierto: lo abre la primera vez, y manda el texto nuevo si cambió.
+    ///
+    /// **Lo que se manda es el disco en el momento de contestar**, no algo que trajo
+    /// la pregunta, que sigue siendo un path y una posición. Y el candado cubre leer
+    /// y mandar: dos preguntas sobre el mismo archivo no se cruzan las versiones.
+    async fn open(&self, file: &Path, uri: &Url) -> Result<()> {
+        if !self.lang.needs_open() { return Ok(()); }
+
+        let mut docs = self.documents.lock().await;
+        let text = tokio::fs::read_to_string(uri.to_file_path().unwrap_or_else(|_| file.to_path_buf()))
+            .await
+            .map_err(|e| anyhow::anyhow!("no se pudo leer {}: {e}", file.display()))?;
+        let mut server = self.server.clone();
+        match docs.sync(uri, &text) {
+            DocSync::Open { version } => server.did_open(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: language_id(file).to_string(),
+                    version,
+                    text,
+                },
+            }),
+            DocSync::Change { version } => server.did_change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier { uri: uri.clone(), version },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None, range_length: None, text,
+                }],
+            }),
+            DocSync::Current => return Ok(()),
+        }
+        .map_err(|e| anyhow::anyhow!("didOpen/didChange: {e:?}"))
+    }
+
+    /// Los ítems de call hierarchy en una posición. **Ninguno es un error**, y no un
+    /// vacío: ver [`NoCallHierarchy`].
+    async fn prepare_call_hierarchy(&self, uri: Url, file: &Path, line: u32, col: u32)
+        -> Result<Vec<CallHierarchyItem>>
+    {
+        let items = self.server.clone()
+            .prepare_call_hierarchy(CallHierarchyPrepareParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier { uri },
+                    position: Position { line, character: col },
+                },
+                work_done_progress_params: Default::default(),
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!("prepareCallHierarchy: {e:?}"))?
+            .unwrap_or_default();
+        if items.is_empty() {
+            return Err(NoCallHierarchy {
+                lang: self.lang.name(),
+                file: file.display().to_string(),
+                line, col,
+            }.into());
+        }
+        Ok(items)
     }
 
     fn file_url(&self, file: &Path) -> Result<Url> {
