@@ -1,12 +1,12 @@
 kind: governs
 endpoint:
   0:
-    link: capture a0ba2bc1eeea3df1b240fcecc17c6edf
+    link: capture 65787d637a6f2e0b13175c877241ce4e
     accepted:
     - agree:
       - anibal
-      link: capture a0ba2bc1eeea3df1b240fcecc17c6edf
-      hash: e1898c8abe7cccda01fad0e7bf7e784410f60c976a32504b38ad42ed00584c25
+      link: capture 65787d637a6f2e0b13175c877241ce4e
+      hash: f07878777f291c0396392cac58fa15f4142e4ed6f8e2fa40baea7c202a2a347a
     name: memoria-del-spawn
   1:
     link: capture 3abca081a41725ce8ddc66eec9aabcf8
