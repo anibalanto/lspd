@@ -1,0 +1,6 @@
+file: docs/specs/concepts/protocol.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Lo que viaja"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "El servidor lee el archivo del disco, y al que sólo conoce lo abierto se lo abre el daemon"))) @target)
