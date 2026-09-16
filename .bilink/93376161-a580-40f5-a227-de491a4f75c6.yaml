@@ -14,6 +14,6 @@ endpoint:
     - agree:
       - anibal
       link: capture edd40c8da102112fa2125733432f1b74
-      hash: f782e0037b9f9de8d40492d5e6fc8f4f2246d4ee9c9c5283a9087b2dca8db349
-      hash_ast: 69d80f7886eec491e1371a0808ae1730c728c65636792940e64868f7d7442843
+      hash: f7fe22b9bbbe9ca4b0ce1739da3529decab16c84dd5db76366c487adf8111d4f
+      hash_ast: 0dc002af534ebb9ee4b2d91144763402a4e3e7dc7e7015f027234e9475bf3354
     name: LspClient
