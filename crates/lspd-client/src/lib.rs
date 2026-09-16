@@ -66,6 +66,13 @@ pub const NOT_READY: i32 = -32001;
 /// pregunta no se puede contestar. Ver `concepts/protocol.md`.
 pub const FAILED: i32 = -32000;
 
+/// El código de `-32002`: en esa posición no hay un ítem de call hierarchy.
+///
+/// **No es una falla**: la pregunta cayó donde no hay llamadas que dar. Un consumidor
+/// que recorre un grafo saltea ese nodo, sin leerlo como "no hay llamadas". Ver
+/// `concepts/protocol.md`.
+pub const NO_CALL_HIERARCHY: i32 = -32002;
+
 /// Un error que el daemon **contestó**, con su código.
 ///
 /// El código viaja porque la tabla del protocolo no sirve aplastada a un mensaje:
@@ -87,6 +94,9 @@ impl RpcError {
     /// Si es el daemon diciendo *"esa pregunta no se puede contestar"*: el language
     /// server falló, no está instalado, o el lenguaje no tiene soporte.
     pub fn is_failure(&self) -> bool { self.code == FAILED }
+
+    /// Si es el daemon diciendo *"ahí no hay un símbolo con llamadas"*.
+    pub fn is_no_call_hierarchy(&self) -> bool { self.code == NO_CALL_HIERARCHY }
 }
 
 impl std::fmt::Display for RpcError {
@@ -221,5 +231,9 @@ mod codigos {
             message: "LSP for \"jdtls\" not found: install one of [\"jdtls\"]".into(),
         };
         assert!(sin_server.is_failure() && !sin_server.is_not_ready(), "una falla no es un 'volvé a preguntar'");
+
+        let sin_item = RpcError { code: NO_CALL_HIERARCHY, message: "nada ahí".into() };
+        assert!(sin_item.is_no_call_hierarchy() && !sin_item.is_failure() && !sin_item.is_not_ready(),
+                "una posición sin ítem no es una falla");
     }
 }
