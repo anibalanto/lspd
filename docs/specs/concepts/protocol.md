@@ -106,6 +106,12 @@ Una respuesta con `error` es una respuesta: el daemon está vivo y esa pregunta 
 
 **Y no se espera.** Sería lo cómodo —bloquear hasta que el servidor esté listo y contestar bien— y está mal por dos motivos: los siete minutos de `rust-analyzer` no entran en el timeout de ningún cliente, y tapar el vacío con una espera es lo mismo que taparlo con un reintento. El daemon contesta lo que sabe en el momento en que se lo preguntan.
 
+### `-32000` es una falla del lado del daemon, y el cliente la nombra
+
+Un language server que se cayó, uno que no está instalado y un lenguaje sin soporte son el mismo caso para quien pregunta: el daemon está vivo y esa pregunta no se puede contestar. El cliente expone los dos códigos de la tabla como constantes —`NOT_READY` y `FAILED`— y `RpcError` los contesta con `is_not_ready()` e `is_failure()`, para que un consumidor no tenga que escribir el número ni leer la prosa.
+
+Quien pregunta decide qué hacer con cada uno. Bilinker, por ejemplo, trata `-32000` como no haber podido mirar el vecindario, no como un error de su corrida: un language server ausente es una falla de infraestructura.
+
 ## Qué no está en el protocolo
 
 ### No hay streaming ni suscripciones
