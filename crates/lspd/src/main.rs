@@ -156,6 +156,9 @@ fn warm_and_wait(workspace: &std::path::Path, args: &StartArgs) -> anyhow::Resul
         |elapsed, seen| for line in progress.observe(elapsed, seen) { eprintln!("{line}") },
     )?;
 
+    for (name, error) in &waited.failed {
+        for line in failure_lines(name, error) { eprintln!("{line}") }
+    }
     for name in &waited.gone {
         eprintln!("  {name} no arrancó: su proceso terminó antes de quedar listo, y el daemon ya no lo tiene");
     }
@@ -166,11 +169,20 @@ fn warm_and_wait(workspace: &std::path::Path, args: &StartArgs) -> anyhow::Resul
     Ok(ok && waited.is_ok())
 }
 
+/// Qué decir de un servidor que no arrancó: la primera línea del error al lado del
+/// nombre, y el resto —lo que el servidor dijo en stderr— indentado debajo.
+fn failure_lines(name: &str, error: &str) -> Vec<String> {
+    let mut lines = error.lines();
+    let mut out = vec![format!("  {name} no arrancó: {}", lines.next().unwrap_or(""))];
+    out.extend(lines.map(|l| format!("      {l}")));
+    out
+}
+
 /// Cada cuánto se recuerda un servidor que sigue indexando.
 const HEARTBEAT: Duration = Duration::from_secs(30);
 
 /// Qué decir del avance: una línea cuando un servidor cambia de estado, y otra cada
-/// [`HEARTBEAT`] mientras siga `INDEXING`.
+/// [`HEARTBEAT`] mientras siga `STARTING` o `INDEXING`.
 ///
 /// **Ni cada consulta ni sólo los cambios.** Una línea por consulta son cientos en
 /// los minutos de un `rust-analyzer` en frío; sólo los cambios son esos mismos
@@ -188,7 +200,8 @@ impl Progress {
             let due = match self.said.get(&s.name) {
                 None => true,
                 Some((state, _)) if *state != s.state => true,
-                Some((_, at)) => s.state == "INDEXING" && elapsed.saturating_sub(*at) >= HEARTBEAT,
+                Some((_, at)) => matches!(s.state.as_str(), "STARTING" | "INDEXING")
+                    && elapsed.saturating_sub(*at) >= HEARTBEAT,
             };
             if due {
                 lines.push(format!("  {:<28}{:<10}{}s", s.name, s.state, elapsed.as_secs()));
@@ -232,6 +245,10 @@ fn status(workspace: &std::path::Path) -> anyhow::Result<()> {
                     s["name"].as_str().unwrap_or("?"),
                     s["state"].as_str().unwrap_or("?"),
                     queries);
+                // Un `FAILED` dice por qué, con lo que el servidor dijo en stderr.
+                for line in s["error"].as_str().unwrap_or("").lines() {
+                    println!("      {line}");
+                }
             }
         }
         // Se levantan por lenguaje y a demanda: ninguno todavía es normal.
@@ -289,7 +306,7 @@ mod tests {
     }
 
     fn st(name: &str, state: &str) -> ServerState {
-        ServerState { name: name.into(), state: state.into(), since_progress: None }
+        ServerState { name: name.into(), state: state.into(), since_progress: None, error: None }
     }
 
     const S: fn(u64) -> Duration = Duration::from_secs;
@@ -314,5 +331,26 @@ mod tests {
         assert!(ready[0].contains("rust-analyzer") && ready[0].contains("READY")
                 && ready[0].contains("40s"), "{ready:?}");
         assert!(r.observe(S(90), &ra("READY")).is_empty(), "un listo no se recuerda");
+    }
+
+    /// Un handshake largo también se recuerda: se lo está esperando igual.
+    #[test]
+    fn un_starting_tambien_se_recuerda() {
+        let mut r = Progress::default();
+        let ts = |state| vec![st("typescript-language-server", state)];
+        assert_eq!(r.observe(S(0), &ts("STARTING")).len(), 1);
+        assert_eq!(r.observe(S(30), &ts("STARTING")).len(), 1);
+    }
+
+    /// **El error de un servidor caído se dice entero**, con cada línea de su stderr
+    /// indentada debajo del nombre.
+    #[test]
+    fn el_error_de_un_caido_se_indenta() {
+        let lines = failure_lines("typescript-language-server",
+            "LSP initialize: ServiceStopped\nerror: required option '--stdio' not specified");
+        assert_eq!(lines, vec![
+            "  typescript-language-server no arrancó: LSP initialize: ServiceStopped".to_string(),
+            "      error: required option '--stdio' not specified".to_string(),
+        ]);
     }
 }

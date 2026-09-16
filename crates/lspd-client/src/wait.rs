@@ -15,33 +15,41 @@ pub struct ServerState {
     pub state: String,
     /// `None` si el daemon no lo dice: uno anterior a `since_progress_ms`.
     pub since_progress: Option<Duration>,
+    /// Por qué no arrancó o se cayó, en un servidor `FAILED`.
+    pub error: Option<String>,
 }
 
-/// El único estado que se espera. `READY` terminó, y `RUNNING` no informa: no hay a
-/// qué esperar.
-const INDEXING: &str = "INDEXING";
+/// Los estados que se esperan: el handshake y la indexación. `READY` terminó, y
+/// `RUNNING` no informa: no hay a qué esperar.
+const WAITED: [&str; 2] = ["STARTING", "INDEXING"];
+
+/// El servidor cuyo arranque falló o cuyo proceso terminó.
+const FAILED: &str = "FAILED";
 
 /// Cada cuánto se consulta `status`.
 pub const POLL: Duration = Duration::from_millis(500);
 
-/// Cuánto silencio se le tolera a un servidor `INDEXING` antes de darlo por
+/// Cuánto silencio se le tolera a un servidor que se espera antes de darlo por
 /// estancado.
 pub const STALL: Duration = Duration::from_secs(120);
 
 /// Cómo terminó la espera.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Waited {
-    /// Los que desaparecieron de `status`: el daemon saca del mapa al servidor cuyo
-    /// proceso terminó.
+    /// Los que desaparecieron de `status` sin decir por qué: un daemon anterior a
+    /// `FAILED`, o uno que otro arranque ya reemplazó.
     pub gone:    Vec<String>,
-    /// Los que siguieron `INDEXING` sin reportar progreso durante la ventana.
+    /// Los que `status` muestra `FAILED`, con su error.
+    pub failed:  Vec<(String, String)>,
+    /// Los que siguieron `STARTING` o `INDEXING` sin reportar progreso durante la
+    /// ventana.
     pub stalled: Vec<String>,
 }
 
 impl Waited {
     /// Todos listos: ninguno caído ni estancado.
     pub fn is_ok(&self) -> bool {
-        self.gone.is_empty() && self.stalled.is_empty()
+        self.gone.is_empty() && self.failed.is_empty() && self.stalled.is_empty()
     }
 }
 
@@ -50,6 +58,7 @@ impl Waited {
 struct Assessment {
     indexing: Vec<String>,
     gone:     Vec<String>,
+    failed:   Vec<(String, String)>,
     stalled:  Vec<String>,
 }
 
@@ -62,7 +71,9 @@ fn assess(stall: Duration, servers: &[String], status: &[ServerState]) -> Assess
     for name in servers {
         match status.iter().find(|s| &s.name == name) {
             None => a.gone.push(name.clone()),
-            Some(s) if s.state == INDEXING => match s.since_progress {
+            Some(s) if s.state == FAILED => a.failed.push(
+                (name.clone(), s.error.clone().unwrap_or_else(|| "sin detalle".into()))),
+            Some(s) if WAITED.contains(&s.state.as_str()) => match s.since_progress {
                 Some(quiet) if quiet >= stall => a.stalled.push(name.clone()),
                 _                             => a.indexing.push(name.clone()),
             },
@@ -80,22 +91,25 @@ pub fn parse_status(v: &serde_json::Value) -> Result<Vec<ServerState>> {
             name:  s["name"].as_str().unwrap_or("?").to_string(),
             state: s["state"].as_str().unwrap_or("?").to_string(),
             since_progress: s["since_progress_ms"].as_u64().map(Duration::from_millis),
+            error: s["error"].as_str().map(str::to_string),
         })
         .collect())
 }
 
-/// Espera a que ninguno de `servers` siga `INDEXING` en el daemon de este workspace.
+/// Espera a que ninguno de `servers` siga `STARTING` o `INDEXING` en el daemon de este
+/// workspace.
 ///
 /// `servers` son nombres como los da `status`. `on_progress` recibe, en cada
 /// consulta, el tiempo desde que empezó la espera y el estado de los que se esperan y
 /// se siguen esperando.
 ///
 /// **No hay tope total**: a un servidor que reporta progreso se lo espera lo que haga
-/// falta. El que sigue `INDEXING` y lleva `stall` sin reportarlo deja de esperarse y
+/// falta. El que sigue esperándose y lleva `stall` sin reportarlo deja de esperarse y
 /// vuelve en [`Waited::stalled`]; [`STALL`] es la ventana por defecto.
 ///
-/// Un `Err` es que el daemon dejó de contestar. Un servidor cuyo proceso termina no es
-/// un `Err`: vuelve en [`Waited::gone`], y los demás se siguen esperando.
+/// Un `Err` es que el daemon dejó de contestar. Un servidor que no arranca o cuyo
+/// proceso termina no es un `Err`: vuelve en [`Waited::failed`] con su error, o en
+/// [`Waited::gone`] si ya no está, y los demás se siguen esperando.
 pub fn wait_ready(
     workspace:   &Path,
     servers:     &[String],
@@ -126,13 +140,15 @@ fn wait_with(
 
         let seen: Vec<ServerState> = status.into_iter()
             .filter(|s| servers.contains(&s.name)
-                && !out.gone.contains(&s.name) && !out.stalled.contains(&s.name))
+                && !out.gone.contains(&s.name) && !out.stalled.contains(&s.name)
+                && !out.failed.iter().any(|(n, _)| n == &s.name))
             .collect();
         on_progress(start.elapsed(), &seen);
 
         // **Una vez caído o estancado, queda así.** Si otro lo levanta de nuevo, o
         // vuelve a avanzar, ya no es el arranque que esta espera estaba mirando.
         out.gone.extend(a.gone.iter().cloned());
+        out.failed.extend(a.failed.iter().cloned());
         out.stalled.extend(a.stalled.iter().cloned());
         if a.settled() { break; }
         pending = a.indexing;
@@ -148,7 +164,7 @@ mod tests {
     use std::cell::RefCell;
 
     fn st(name: &str, state: &str) -> ServerState {
-        ServerState { name: name.into(), state: state.into(), since_progress: Some(Duration::ZERO) }
+        ServerState { name: name.into(), state: state.into(), since_progress: Some(Duration::ZERO), error: None }
     }
 
     /// Un servidor que lleva `secs` segundos sin reportar progreso.
@@ -358,6 +374,52 @@ mod tests {
         assert!(r.is_err());
     }
 
+    /// **`STARTING` se espera como `INDEXING`**: en el handshake el servidor todavía no
+    /// dijo nada, ni siquiera que no informa readiness.
+    #[test]
+    fn starting_se_espera() {
+        let mut vistas = 0;
+        let w = wait_with(
+            script(vec![
+                vec![st("typescript-language-server", "STARTING")],
+                vec![st("typescript-language-server", "RUNNING")],
+            ]),
+            &servers(&["typescript-language-server"]), STALL_TEST, TICK,
+            |_, _| vistas += 1,
+        ).unwrap();
+        assert!(w.is_ok(), "{w:?}");
+        assert_eq!(vistas, 2, "el STARTING no cuenta como listo");
+    }
+
+    /// Un handshake que no termina también es silencio.
+    #[test]
+    fn un_starting_sin_progreso_en_la_ventana_esta_estancado() {
+        let a = assess(STALL_TEST, &servers(&["jdtls"]), &[quiet("jdtls", "STARTING", 60)]);
+        assert_eq!(a.stalled, servers(&["jdtls"]));
+    }
+
+    /// **Un `FAILED` es un servidor caído, con su porqué**, y la espera termina mal. Es
+    /// el `typescript-language-server` que muere en el handshake.
+    #[test]
+    fn el_que_se_arranca_y_falla_vuelve_con_su_error() {
+        let failed = ServerState {
+            error: Some("LSP initialize: ServiceStopped".into()),
+            ..st("typescript-language-server", "FAILED")
+        };
+        let w = wait_with(
+            script(vec![
+                vec![st("typescript-language-server", "STARTING")],
+                vec![failed],
+            ]),
+            &servers(&["typescript-language-server"]), STALL_TEST, TICK,
+            |_, _| {},
+        ).unwrap();
+        assert!(!w.is_ok());
+        assert_eq!(w.failed, vec![("typescript-language-server".to_string(),
+                                   "LSP initialize: ServiceStopped".to_string())]);
+        assert!(w.gone.is_empty());
+    }
+
     // ─── parse_status ────────────────────────────────────────────────────────
 
     #[test]
@@ -366,11 +428,14 @@ mod tests {
             {"name": "rust-analyzer", "state": "READY", "queries": 3, "since_progress_ms": 0},
             {"name": "jdtls", "state": "INDEXING", "queries": 0, "since_progress_ms": 1500},
             {"name": "pylsp", "state": "RUNNING", "queries": 0},
+            {"name": "typescript-language-server", "state": "FAILED", "queries": 0,
+             "since_progress_ms": 0, "error": "se cayó"},
         ]);
         assert_eq!(parse_status(&v).unwrap(), vec![
             st("rust-analyzer", "READY"),
             ServerState { since_progress: Some(Duration::from_millis(1500)), ..st("jdtls", "INDEXING") },
             ServerState { since_progress: None, ..st("pylsp", "RUNNING") },
+            ServerState { error: Some("se cayó".into()), ..st("typescript-language-server", "FAILED") },
         ]);
         assert!(parse_status(&serde_json::json!({"no": "lista"})).is_err());
     }
