@@ -51,9 +51,11 @@ struct StartArgs {
     #[arg(long, value_name = "LENGUAJE", requires = "wait", value_parser = language_name)]
     lang: Vec<String>,
 
-    /// Tope de la espera, en segundos. Vencido, retorna 1 y el daemon queda vivo
-    #[arg(long, value_name = "SEGUNDOS", requires = "wait")]
-    timeout: Option<u64>,
+    /// Cuántos segundos se espera a un servidor que indexa sin reportar progreso.
+    /// Pasados, retorna 1 y el daemon queda vivo
+    #[arg(long, value_name = "SEGUNDOS", requires = "wait",
+          default_value_t = lspd_client::STALL.as_secs())]
+    stall: u64,
 }
 
 fn language_name(s: &str) -> Result<String, String> {
@@ -124,8 +126,8 @@ fn start(workspace: &std::path::Path, args: &StartArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Calienta y espera. `false` si algún servidor no arrancó o si venció el tope: el
-/// daemon queda vivo en los dos casos.
+/// Calienta y espera. `false` si algún servidor no arrancó, se murió o se estancó: el
+/// daemon queda vivo en todos los casos.
 fn warm_and_wait(workspace: &std::path::Path, args: &StartArgs) -> anyhow::Result<bool> {
     let warmed = lspd_client::rpc(workspace, "warm",
         serde_json::json!({ "languages": args.lang }))?;
@@ -150,16 +152,16 @@ fn warm_and_wait(workspace: &std::path::Path, args: &StartArgs) -> anyhow::Resul
 
     let mut progress = Progress::default();
     let waited = lspd_client::wait_ready(
-        workspace, &servers, args.timeout.map(Duration::from_secs),
+        workspace, &servers, Duration::from_secs(args.stall),
         |elapsed, seen| for line in progress.observe(elapsed, seen) { eprintln!("{line}") },
     )?;
 
     for name in &waited.gone {
-        eprintln!("  {name} no arrancó: se cayó antes de terminar el handshake, y el daemon ya no lo tiene");
+        eprintln!("  {name} no arrancó: su proceso terminó antes de quedar listo, y el daemon ya no lo tiene");
     }
-    if waited.timed_out {
-        eprintln!("venció el tope de {}s; siguen indexando: {}. El daemon queda vivo.",
-            args.timeout.unwrap_or_default(), waited.indexing.join(", "));
+    for name in &waited.stalled {
+        eprintln!("  {name} lleva {}s indexando sin reportar progreso: no se lo espera más. El daemon queda vivo.",
+            args.stall);
     }
     Ok(ok && waited.is_ok())
 }
@@ -222,10 +224,14 @@ fn status(workspace: &std::path::Path) -> anyhow::Result<()> {
     match servers.as_array() {
         Some(list) if !list.is_empty() => {
             for s in list {
-                println!("  {:<28}{:<9}queries={}",
+                let queries = format!("queries={}", s["queries"]);
+                let progress = s["since_progress_ms"].as_u64()
+                    .map(|ms| format!("  progreso hace {}s", ms / 1000))
+                    .unwrap_or_default();
+                println!("  {:<28}{:<10}{:<13}{progress}",
                     s["name"].as_str().unwrap_or("?"),
                     s["state"].as_str().unwrap_or("?"),
-                    s["queries"]);
+                    queries);
             }
         }
         // Se levantan por lenguaje y a demanda: ninguno todavía es normal.
@@ -249,17 +255,23 @@ mod tests {
         let Some(Cmd::Start(s)) = parse(&["start"]).unwrap().cmd else { panic!() };
         assert!(!s.wait);
         assert!(s.lang.is_empty());
-        assert_eq!(s.timeout, None);
+        assert_eq!(s.stall, lspd_client::STALL.as_secs(), "la ventana por defecto");
     }
 
     #[test]
-    fn wait_con_lang_repetido_y_timeout() {
+    fn wait_con_lang_repetido_y_stall() {
         let Some(Cmd::Start(s)) =
-            parse(&["start", "--wait", "--lang", "rust", "--lang", "java", "--timeout", "30"])
+            parse(&["start", "--wait", "--lang", "rust", "--lang", "java", "--stall", "30"])
                 .unwrap().cmd else { panic!() };
         assert!(s.wait);
         assert_eq!(s.lang, vec!["rust".to_string(), "java".to_string()]);
-        assert_eq!(s.timeout, Some(30));
+        assert_eq!(s.stall, 30);
+    }
+
+    /// **`--timeout` ya no existe**: la espera no tiene tope total.
+    #[test]
+    fn timeout_ya_no_es_un_argumento() {
+        assert!(parse(&["start", "--wait", "--timeout", "30"]).is_err());
     }
 
     /// Un lenguaje que no está en la tabla es un error de uso, antes de tocar el
@@ -269,15 +281,15 @@ mod tests {
         assert!(parse(&["start", "--wait", "--lang", "cobol"]).is_err());
     }
 
-    /// `--lang` y `--timeout` son de la espera: sin `--wait` no dicen nada.
+    /// `--lang` y `--stall` son de la espera: sin `--wait` no dicen nada.
     #[test]
-    fn lang_y_timeout_piden_wait() {
+    fn lang_y_stall_piden_wait() {
         assert!(parse(&["start", "--lang", "rust"]).is_err());
-        assert!(parse(&["start", "--timeout", "10"]).is_err());
+        assert!(parse(&["start", "--stall", "10"]).is_err());
     }
 
     fn st(name: &str, state: &str) -> ServerState {
-        ServerState { name: name.into(), state: state.into() }
+        ServerState { name: name.into(), state: state.into(), since_progress: None }
     }
 
     const S: fn(u64) -> Duration = Duration::from_secs;
