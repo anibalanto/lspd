@@ -4,9 +4,9 @@ endpoint:
     link: capture cae3378b069dd3adc756b54c590db991
     accepted:
     - agree:
-      - Anibal
+      - anibal
       link: capture cae3378b069dd3adc756b54c590db991
-      hash: 8e0dc04f9713cbc6aae8a0708fa7027e94b8d565c1744930d7b8643d4214e7bc
+      hash: ffc58380ddc97771578d0c8580d8cd94760ebb6675aa6cef9a335028e2cbf95c
     name: los-metodos
   1:
     link: capture 8bd91791cb4bf4800ecbd718cf7b1884
