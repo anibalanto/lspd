@@ -63,7 +63,7 @@ Cuando el ejecutable no está, el porqué es el error que devuelve `warm`. Cuand
 
 La espera no tiene tope total: **mientras un servidor `INDEXING` reporte progreso, se lo espera lo que haga falta.** Lo que la corta es el silencio. Un servidor que sigue `INDEXING` y lleva `--stall` segundos sin reportar progreso —lo que `status` dice en `since_progress_ms`— deja de esperarse: `start --wait` dice cuál y hace cuánto, sigue esperando a los demás, **retorna 1 y deja el daemon vivo**. Lo que ya indexó sirve a la corrida siguiente, y apagarlo es de `stop`.
 
-La ventana por defecto es de 120 segundos. Medido el 2026-09-16, con caché fría: el silencio más largo de `rust-analyzer` mientras indexa fue de 6,8 s sobre el impl de lspd, 2,3 s sobre el de bilinker y 2,0 s sobre el de lattice.
+La ventana por defecto es de 120 segundos. Medido el 2026-09-16, con caché fría: el silencio más largo de `rust-analyzer` mientras indexa fue de 6,8 s sobre el impl de lspd, 2,3 s sobre el de bilinker y 2,0 s sobre el de lattice; el de `jdtls` importando en frío un repo de 3837 archivos Java, listo a los 82 s, fue de 5 s, con `status` consultado cada 2 s.
 
 Un daemon que no dice `since_progress_ms` no permite ver el silencio, y con él la espera no se corta.
 
