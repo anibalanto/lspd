@@ -19,7 +19,7 @@ mod transport;
 pub use transport::{connect, connect_to, Endpoint};
 
 mod wait;
-pub use wait::{parse_status, wait_ready, ServerState, Waited, POLL};
+pub use wait::{parse_status, wait_ready, ServerState, Waited, POLL, STALL};
 
 /// El directorio del daemon. Se **deriva**: no hay nada que configurar.
 pub fn dir() -> PathBuf {

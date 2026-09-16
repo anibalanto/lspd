@@ -25,7 +25,8 @@ fn fake_path() -> &'static Path {
                 std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
             };
             // Arranca y no contesta nunca: un handshake eterno.
-            script("rust-analyzer", "exec sleep 60");
+            // Con ruta: el `PATH` de estos tests es sólo este directorio.
+            script("rust-analyzer", "exec /bin/sleep 60");
             // Arranca y se muere antes de contestar.
             script("jdtls", "exit 1");
         }
@@ -107,6 +108,21 @@ async fn warm_vuelve_sin_esperar_el_handshake() {
     let st = m.status().await;
     assert_eq!(st.len(), 1);
     assert_eq!(st[0].state, "INDEXING");
+}
+
+/// **Un servidor en pleno handshake también dice hace cuánto**: desde que empezó a
+/// arrancar, porque todavía no pudo reportar nada.
+#[cfg(unix)]
+#[tokio::test]
+async fn en_el_handshake_el_progreso_cuenta_desde_el_arranque() {
+    let ws = workspace_with(&[]);
+    let m = LspManager::new(ws.path().to_path_buf());
+
+    assert!(m.warm(&langs(&["rust"])).await[0].error.is_none());
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let st = m.status().await;
+    assert_eq!(st.len(), 1);
+    assert!(st[0].since_progress_ms >= 250, "{}", st[0].since_progress_ms);
 }
 
 /// **Uno por lenguaje, también calentando.** Dos `warm` seguidos sobre un servidor
