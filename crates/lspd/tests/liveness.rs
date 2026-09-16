@@ -47,7 +47,7 @@ sleep 1.5
 send '{"jsonrpc":"2.0","method":"$/progress","params":{"token":"t","value":{"kind":"report","message":"x"}}}'
 exec sleep 60 </dev/null"#);
         // Termina el handshake y se muere indexando.
-        script("jdtls", "sleep 0.5\nexit 0");
+        script("jdtls", "sleep 0.5\necho 'se murió indexando' >&2\nexit 0");
         // Las dos notificaciones de readiness también son progreso. Ningún servidor
         // real las manda con este nombre: el lenguaje es sólo el lugar en el mapa.
         script("typescript-language-server", r#"
@@ -150,27 +150,33 @@ async fn since_progress_ms_viaja_por_el_protocolo() {
     drop(ws);
 }
 
-/// **El servidor cuyo proceso termina después del handshake sale del mapa**: `status`
-/// deja de listarlo, y el lugar se puede volver a ocupar.
+/// **El servidor cuyo proceso termina después del handshake sale del mapa**, y el
+/// lugar se puede volver a ocupar. `status` lo sigue mostrando, `FAILED` y con su
+/// porqué, en vez de dejarlo desaparecer.
 #[tokio::test]
-async fn un_servidor_que_muere_indexando_sale_del_mapa() {
+async fn un_servidor_que_muere_indexando_queda_failed() {
     let (_ws, m) = manager();
     assert!(m.warm(&langs(&["java"])).await[0].error.is_none());
 
     let mut listed = false;
     for _ in 0..50 {
-        if m.status().await.iter().any(|s| s.name == "jdtls") { listed = true; break; }
+        if m.status().await.iter().any(|s| s.name == "jdtls" && s.state != "FAILED") { listed = true; break; }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     assert!(listed, "jdtls tenía que aparecer mientras vivía");
 
-    let mut gone = false;
+    let mut failed = None;
     for _ in 0..300 {
-        if m.status().await.is_empty() { gone = true; break; }
+        if let Some(s) = m.status().await.into_iter().find(|s| s.state == "FAILED") {
+            failed = Some(s);
+            break;
+        }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    assert!(gone, "el jdtls muerto sigue en el mapa: {:?}",
-        m.status().await.iter().map(|s| (&s.name, &s.state)).collect::<Vec<_>>());
+    let failed = failed.expect("el jdtls muerto tiene que figurar FAILED");
+    let e = failed.error.expect("FAILED lleva su error");
+    assert!(e.contains("terminó"), "dice que el proceso terminó: {e}");
+    assert!(e.contains("se murió indexando"), "con su stderr: {e}");
 
     assert!(m.warm(&langs(&["java"])).await[0].error.is_none(), "el lugar quedó libre");
 }

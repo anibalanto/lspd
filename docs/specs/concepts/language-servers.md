@@ -41,14 +41,20 @@ La tabla dice qué ejecutable buscar. **Lo que no dice, y hace falta, es qué ne
 
 **Sigue siendo una tabla, y por eso entra acá.** Es un dato por servidor —una constante, no una decisión—, y agregar un lenguaje sigue siendo agregar una fila. Lo que cambia es que la fila tiene dos casillas en vez de una.
 
-### Y una más: con cuánta memoria se lo lanza
+### Y una más: con qué argumentos se lo lanza
 
-Un proceso hijo que no recibe un límite hereda el que el runtime del servidor calcule solo, y **eso no es cero: es lo que ese runtime decida por su cuenta.** La JVM que corre `jdtls` fija su heap máximo en **un cuarto de la RAM de la máquina** —7,8 GB en una de 32 GB— y arranca reservando 1 GB. Ninguno de los dos números los eligió `lspd`, y el primero cambia de máquina en máquina.
+**`typescript-language-server` no habla por stdio si no se lo piden.** Sin `--stdio` termina apenas arranca, con `error: required option '--stdio' not specified`. Medido el 2026-09-16 con `typescript-language-server` 6.0.0. Los otros hablan por stdio sin que se lo pidan.
 
-| Servidor | Con cuánto se lo lanza |
+Y un proceso hijo que no recibe un límite hereda el que el runtime del servidor calcule solo, y **eso no es cero: es lo que ese runtime decida por su cuenta.** La JVM que corre `jdtls` fija su heap máximo en **un cuarto de la RAM de la máquina** —7,8 GB en una de 32 GB— y arranca reservando 1 GB. Ninguno de los dos números los eligió `lspd`, y el primero cambia de máquina en máquina.
+
+| Servidor | Con qué argumentos se lo lanza |
 |---|---|
+| `rust-analyzer` | nada |
+| `typescript-language-server` | `--stdio`. Sin eso termina apenas arranca |
+| `jedi-language-server`, `pylsp` | nada |
 | `jdtls` | `--jvm-arg=-Xmx2G`. Sin eso, el techo es un cuarto de la RAM de la máquina y escala con ella |
-| los demás | nada: no exponen un techo, y el suyo no crece con la máquina |
+
+Los que no llevan nada no exponen un techo, y el suyo no crece con la máquina.
 
 **Un techo que escala con la máquina es un techo que no protege a ninguna.** El daño no es que un servidor use mucho: es que lo que en la máquina del que desarrolla entra justo, en la del que tiene el doble de RAM se lleva puesta la sesión — y la que se lleva puesta es *la otra*, porque nadie prueba en la máquina grande. Un número fijo falla igual en las dos, que es lo que se quiere de un límite.
 
@@ -76,6 +82,22 @@ shutdown
 ```
 
 Un daemon recién arrancado no tiene ninguno levantado, y eso es normal: `status` lo dice.
+
+### Un servidor que arranca está `STARTING`, y uno que se cae queda `FAILED` con su porqué
+
+**Mientras dura el handshake, `status` muestra al servidor `STARTING`**, cualquiera sea su lenguaje: todavía no dijo nada de sí mismo, ni siquiera que no informa readiness. Terminado el handshake, pasa al estado de su [readiness](#la-readiness).
+
+**Un servidor cuyo `initialize` falla, o cuyo proceso termina, queda en `status` como `FAILED`**, con un `error` que dice por qué: el error del `initialize`, o que el proceso terminó, seguido de las últimas líneas que el servidor escribió en stderr. De stderr se conservan las últimas 20 líneas, en memoria, mientras el servidor vive; no se escriben en ningún lado.
+
+```
+typescript-language-server  FAILED
+    LSP initialize: ServiceStopped
+    error: required option '--stdio' not specified
+```
+
+Un `FAILED` no ocupa el lugar del lenguaje: la próxima pregunta o el próximo `warm` lo vuelve a arrancar, y ese arranque lo reemplaza. Un servidor que se cierra porque el daemon se apaga no queda `FAILED`.
+
+`typescript-language-server` necesita además un `typescript` con `lib/tsserver.js`, en el workspace o al lado del servidor, y `typescript` 7 no lo trae. Sin él, el `initialize` falla con `Could not find a valid TypeScript installation`, y ese es el `error` del `FAILED`.
 
 ### Uno por lenguaje es una invariante, y el mapa de clientes es quien la sostiene
 

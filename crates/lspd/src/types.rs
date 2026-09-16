@@ -37,7 +37,11 @@ pub struct LspStatus {
     pub state: String,
     pub queries: u64,
     /// Milisegundos desde la última señal de avance del servidor, o desde que arrancó.
+    /// En un `FAILED`, desde que falló.
     pub since_progress_ms: u64,
+    /// Por qué no arrancó o se cayó. Sólo en un `FAILED`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 /// Lo que `warm` dice de cada lenguaje que le pidieron.

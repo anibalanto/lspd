@@ -42,6 +42,64 @@ fn readiness_from(method: &str, params: &serde_json::Value) -> Option<Readiness>
     }
 }
 
+/// Cuántas líneas del stderr de un servidor se conservan.
+const STDERR_LINES: usize = 20;
+
+/// Cuánto se espera a que un servidor que falló termine de escribir su stderr.
+const STDERR_GRACE: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Las últimas líneas que un servidor escribió en stderr.
+///
+/// **Sólo para decir por qué se cayó**: un servidor que no arranca lo dice ahí
+/// —`typescript-language-server` sin `--stdio`— y en ningún otro lado. No es un log:
+/// se conservan las últimas [`STDERR_LINES`], en memoria, mientras el servidor vive.
+#[derive(Debug)]
+pub struct StderrTail {
+    lines: std::sync::Mutex<std::collections::VecDeque<String>>,
+    /// Pasa a `true` cuando el servidor cerró su stderr.
+    done:  tokio::sync::watch::Receiver<bool>,
+}
+
+impl StderrTail {
+    /// Lee el stderr del servidor en una task propia. **Hay que leerlo siempre**: un
+    /// pipe que nadie vacía bloquea al servidor cuando se llena.
+    fn spawn(stderr: impl tokio::io::AsyncRead + Unpin + Send + 'static) -> Arc<Self> {
+        let (done_tx, done) = tokio::sync::watch::channel(false);
+        let tail = Arc::new(Self { lines: Default::default(), done });
+        let writer = Arc::clone(&tail);
+        tokio::spawn(async move {
+            use tokio::io::AsyncBufReadExt;
+            let mut lines = tokio::io::BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                writer.push(line);
+            }
+            let _ = done_tx.send(true);
+        });
+        tail
+    }
+
+    fn push(&self, line: String) {
+        let mut l = self.lines.lock().unwrap();
+        if l.len() == STDERR_LINES { l.pop_front(); }
+        l.push_back(line);
+    }
+
+    /// El error con lo último que el servidor dijo en stderr, si dijo algo.
+    ///
+    /// **Espera un momento a que termine de escribir**: el proceso que se cae cierra
+    /// su stdout y su stderr casi a la vez, y lo que se ve primero es lo de stdout.
+    pub async fn explain(&self, error: &str) -> String {
+        let mut done = self.done.clone();
+        let _ = tokio::time::timeout(STDERR_GRACE, done.wait_for(|d| *d)).await;
+        let l = self.lines.lock().unwrap();
+        if l.is_empty() {
+            error.to_string()
+        } else {
+            format!("{error}\n{}", l.iter().cloned().collect::<Vec<_>>().join("\n"))
+        }
+    }
+}
+
 pub struct LspClient {
     /// **Clonar, no serializar.** Los métodos del trait `LanguageServer` toman
     /// `&mut self`, y la respuesta a eso sobre un tipo clonable es clonar: un
@@ -73,6 +131,8 @@ pub struct LspClient {
     pub progress:  Arc<ProgressClock>,
     /// Pasa a `true` cuando el mainloop termina: el proceso cerró su salida.
     closed:        tokio::sync::watch::Receiver<bool>,
+    /// Lo último que dijo en stderr.
+    pub stderr:    Arc<StderrTail>,
 }
 
 impl LspClient {
@@ -162,13 +222,14 @@ impl LspClient {
             .current_dir(workspace)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| anyhow::anyhow!("failed to spawn {exe}: {e}"))?;
 
         let stdin  = child.stdin.take().unwrap().compat_write();
         let stdout = child.stdout.take().unwrap().compat();
+        let stderr = StderrTail::spawn(child.stderr.take().unwrap());
 
         // **El mainloop termina cuando el proceso cierra su salida**, y eso es lo que
         // `closed` avisa: quien tiene el mapa saca de ahí al servidor muerto.
@@ -183,7 +244,7 @@ impl LspClient {
         let workspace_url = Url::from_file_path(workspace)
             .map_err(|_| anyhow::anyhow!("invalid workspace path: {}", workspace.display()))?;
 
-        server.initialize(InitializeParams {
+        let initialized = server.initialize(InitializeParams {
             workspace_folders: Some(vec![WorkspaceFolder {
                 uri: workspace_url,
                 name: workspace
@@ -218,8 +279,12 @@ impl LspClient {
             },
             ..Default::default()
         })
-        .await
-        .map_err(|e| anyhow::anyhow!("LSP initialize: {e:?}"))?;
+        .await;
+        // **El error del `initialize` solo no dice por qué**: un proceso que terminó
+        // apenas arrancó da `ServiceStopped`, y el porqué lo escribió en stderr.
+        if let Err(e) = initialized {
+            anyhow::bail!(stderr.explain(&format!("LSP initialize: {e:?}")).await);
+        }
 
         // initialized is a notification — returns Result synchronously, no .await
         server
@@ -236,6 +301,7 @@ impl LspClient {
             readiness,
             progress,
             closed,
+            stderr,
         }))
     }
 
@@ -572,5 +638,31 @@ mod readiness_tests {
         assert_eq!(c.get(), Readiness::Indexing);
         c.set(Readiness::Ready);
         assert_eq!(c.get(), Readiness::Ready);
+    }
+}
+
+#[cfg(test)]
+mod stderr_tail_tests {
+    use super::*;
+
+    /// **Se conservan las últimas líneas, no las primeras**: el porqué de una caída
+    /// es lo último que el servidor escribió.
+    #[tokio::test]
+    async fn se_conservan_las_ultimas_lineas() {
+        let text: String = (0..STDERR_LINES + 5).map(|i| format!("línea {i}\n")).collect();
+        let tail = StderrTail::spawn(std::io::Cursor::new(text.into_bytes()));
+        let e = tail.explain("se cayó").await;
+        let lines: Vec<&str> = e.lines().collect();
+        assert_eq!(lines[0], "se cayó");
+        assert_eq!(lines.len(), STDERR_LINES + 1);
+        assert_eq!(lines[1], "línea 5");
+        assert_eq!(*lines.last().unwrap(), format!("línea {}", STDERR_LINES + 4));
+    }
+
+    /// Un servidor que no dijo nada deja el error como estaba.
+    #[tokio::test]
+    async fn sin_stderr_el_error_queda_igual() {
+        let tail = StderrTail::spawn(std::io::Cursor::new(Vec::new()));
+        assert_eq!(tail.explain("se cayó").await, "se cayó");
     }
 }
