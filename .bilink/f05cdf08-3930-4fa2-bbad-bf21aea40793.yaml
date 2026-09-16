@@ -17,7 +17,11 @@ endpoint:
     - agree:
       - anibal
       link: capture 197dfb13a820e277b030d2f16a243af8
-      hash: c0192f77f895b6818ae7cf181a9e2a85da3a2b0976aa22c955f477cdfc1ba3e4
-      hash_ast: 803aa87f1ff9a027acf30b89dd61ef8c80906da971955525db07854d288935f4
-      n: declined
+      hash: be0b39da666d35cef736932951c69d7c0ba81cdae9357afa50fae12e4d263377
+      hash_ast: 71ba65dd54d59e6331b3158af2123c443040410987fb6b37355ff10215be5900
+      n:
+        1:
+          link: capture 50e2837e161e1ebab760fe3b74fb0bd3
+          hash: 2ab21ad3f315965a5fe994d1ac7108b0b86ce0bf219f5c66f51ecc5399ca4f82
+          hash_ast: b0e6729545bbcdac696cde8e2398761c67925e61765ad65b2bc3faf48f0de85c
     name: LspClient::callees
