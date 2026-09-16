@@ -1,0 +1,25 @@
+kind: governs
+endpoint:
+  0:
+    link: capture 6f1e40e2f4296ffad65cfa9cfb83173b
+    accepted:
+    - agree:
+      - anibal
+      link: capture 6f1e40e2f4296ffad65cfa9cfb83173b
+      hash: 020986198921f43c427dfa24479ebe06c60edb4c63ef4d33922720ccdc1c900a
+  1:
+    link: capture 71826abe4f9a70c408565f4f61a6830a
+    n:
+      1:
+        link: capture 11f5533c7a07bb683768a417db0ae3d4
+    accepted:
+    - agree:
+      - anibal
+      link: capture 71826abe4f9a70c408565f4f61a6830a
+      hash: 7def7039065b0b0440fd85d3b33f959be99d48274e7a6d63073deb6ef2ed5e5d
+      hash_ast: ba824607c80745f637de492b8e8af385c9a00e8bf7ed65a5dc657b338ade7f73
+      n:
+        1:
+          link: capture 11f5533c7a07bb683768a417db0ae3d4
+          hash: 513007ade29b2dac8398688b11c15e7cae5a84be4760b866314806817a29f4e6
+          hash_ast: a6d17dcb1cd8c1e437ed588ee43401082ae10bb4fea300de8aa821abfec36b74
