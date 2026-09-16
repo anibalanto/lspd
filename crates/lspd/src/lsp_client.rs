@@ -10,7 +10,7 @@ use async_lsp::lsp_types::*;
 use tokio::sync::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use crate::language::{Language, Readiness, ReadinessCell};
+use crate::language::{Language, ProgressClock, Readiness, ReadinessCell};
 use crate::types::{CalleeInfo, DefinitionInfo, SymbolInfo};
 
 /// Qué readiness declara una notificación, si declara alguna.
@@ -69,6 +69,10 @@ pub struct LspClient {
     workspace:   PathBuf,
     /// Lo que el servidor dijo de sí mismo. Ver `language.rs`.
     pub readiness: Arc<ReadinessCell>,
+    /// Cuándo avisó por última vez que avanza.
+    pub progress:  Arc<ProgressClock>,
+    /// Pasa a `true` cuando el mainloop termina: el proceso cerró su salida.
+    closed:        tokio::sync::watch::Receiver<bool>,
 }
 
 impl LspClient {
@@ -80,15 +84,24 @@ impl LspClient {
         // vive en un closure que no puede ver un `LspClient` que todavía no está.
         let readiness = Arc::new(ReadinessCell::new(lang));
         let for_router = Arc::clone(&readiness);
+        let progress = Arc::new(ProgressClock::new());
+        let progress_for_router = Arc::clone(&progress);
 
         let (mainloop, mut server) = async_lsp::MainLoop::new_client(|_server| {
             let readiness = Arc::clone(&for_router);
+            let progress = Arc::clone(&progress_for_router);
+            let progress_for_unhandled = Arc::clone(&progress);
             let mut router = async_lsp::router::Router::new(());
             router
                 // Server→client notifications (ignore all)
                 .notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()))
                 .notification::<notif::ShowMessage>(|_, _| ControlFlow::Continue(()))
-                .notification::<notif::Progress>(|_, _| ControlFlow::Continue(()))
+                // **El progreso no se ignora**: es la única señal de que un servidor
+                // que todavía no terminó sigue avanzando.
+                .notification::<notif::Progress>(move |_, _| {
+                    progress.touch();
+                    ControlFlow::Continue(())
+                })
                 .notification::<notif::PublishDiagnostics>(|_, _| ControlFlow::Continue(()))
                 // **Y cualquier otra**, que es lo que "ignore all" quería decir.
                 //
@@ -108,6 +121,7 @@ impl LspClient {
                 .unhandled_notification(move |_, n: async_lsp::AnyNotification| {
                     if let Some(r) = readiness_from(&n.method, &n.params) {
                         readiness.set(r);
+                        progress_for_unhandled.touch();
                     }
                     ControlFlow::Continue(())
                 })
@@ -156,10 +170,14 @@ impl LspClient {
         let stdin  = child.stdin.take().unwrap().compat_write();
         let stdout = child.stdout.take().unwrap().compat();
 
+        // **El mainloop termina cuando el proceso cierra su salida**, y eso es lo que
+        // `closed` avisa: quien tiene el mapa saca de ahí al servidor muerto.
+        let (closed_tx, closed) = tokio::sync::watch::channel(false);
         let task = tokio::spawn(async move {
             if let Err(e) = mainloop.run_buffered(stdout, stdin).await {
                 eprintln!("[lsp] mainloop exited: {e:?}");
             }
+            let _ = closed_tx.send(true);
         });
 
         let workspace_url = Url::from_file_path(workspace)
@@ -189,6 +207,13 @@ impl LspClient {
                 experimental: Some(serde_json::json!({
                     "serverStatusNotification": true,
                 })),
+                // **`$/progress` también hay que pedirlo**: sin esto, entre el
+                // `serverStatus` del principio y el del final no llega nada, y un
+                // servidor que avanza no se distingue de uno colgado.
+                window: Some(WindowClientCapabilities {
+                    work_done_progress: Some(true),
+                    ..WindowClientCapabilities::default()
+                }),
                 ..ClientCapabilities::default()
             },
             ..Default::default()
@@ -209,7 +234,18 @@ impl LspClient {
             queries: AtomicU64::new(0),
             workspace: workspace.to_path_buf(),
             readiness,
+            progress,
+            closed,
         }))
+    }
+
+    /// Espera a que el proceso del servidor termine, por la razón que sea.
+    ///
+    /// **No toma `&self` prestado mientras espera**: quien vigila no puede mantener
+    /// vivo al cliente, porque soltarlo es lo que mata al proceso.
+    pub fn exited(&self) -> impl std::future::Future<Output = ()> + Send + 'static {
+        let mut closed = self.closed.clone();
+        async move { let _ = closed.wait_for(|c| *c).await; }
     }
 
     pub async fn callees(&self, file: &Path, line: u32, col: u32) -> Result<Vec<CalleeInfo>> {
@@ -518,6 +554,16 @@ mod readiness_tests {
         assert_eq!(Readiness::initial(Language::Java),       Readiness::Indexing);
         assert_eq!(Readiness::initial(Language::TypeScript), Readiness::Running);
         assert_eq!(Readiness::initial(Language::Python),     Readiness::Running);
+    }
+
+    /// El reloj cuenta desde que se crea, y `touch` lo vuelve a cero.
+    #[test]
+    fn el_reloj_de_progreso_cuenta_desde_la_ultima_senal() {
+        let c = ProgressClock::new();
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        assert!(c.since() >= std::time::Duration::from_millis(30));
+        c.touch();
+        assert!(c.since() < std::time::Duration::from_millis(30));
     }
 
     #[test]

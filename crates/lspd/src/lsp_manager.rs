@@ -23,11 +23,14 @@ use crate::types::{CalleeInfo, DefinitionInfo, LspStatus, SymbolInfo, WarmInfo};
 /// como `String` —`anyhow::Error` no es `Clone`— y se reconstruye de este lado.
 struct LspSlot {
     tx: tokio::sync::watch::Sender<Option<Result<Arc<LspClient>, String>>>,
+    /// Cuándo empezó el arranque: el progreso de un servidor en pleno handshake se
+    /// cuenta desde acá.
+    started: std::time::Instant,
 }
 
 impl LspSlot {
     fn pending() -> Self {
-        Self { tx: tokio::sync::watch::channel(None).0 }
+        Self { tx: tokio::sync::watch::channel(None).0, started: std::time::Instant::now() }
     }
 
     /// **`send_replace` y no `send`.** `send` falla cuando no queda ningún receiver
@@ -142,10 +145,22 @@ impl LspManager {
             //
             // Se saca **antes** de avisar, así quien recibe el error ya encuentra el
             // lugar libre si vuelve a pedir.
-            if started.is_err() {
-                let mut w = clients.write().await;
-                if w.get(&lang).is_some_and(|c| Arc::ptr_eq(c, &mine)) {
-                    w.remove(&lang);
+            match &started {
+                Err(_) => release(&clients, lang, &Arc::downgrade(&mine)).await,
+                // **Y uno que arrancó y después se muere, tampoco.** Sin esto quedaba
+                // en el mapa con el último estado que dijo —`INDEXING` para siempre—,
+                // y quien lo esperaba no tenía cómo saber que ya no hay nadie.
+                //
+                // La vigilancia guarda un `Weak`: si guardara el slot, mantendría
+                // vivo al cliente, y soltar el cliente es lo que mata al proceso.
+                Ok(client) => {
+                    let exited = client.exited();
+                    let clients = Arc::clone(&clients);
+                    let slot = Arc::downgrade(&mine);
+                    tokio::spawn(async move {
+                        exited.await;
+                        release(&clients, lang, &slot).await;
+                    });
                 }
             }
             mine.settle(started);
@@ -253,6 +268,7 @@ impl LspManager {
                     name:    c.lang.name().to_string(),
                     state:   c.readiness.get().as_str().to_string(),
                     queries: c.queries.load(Ordering::Relaxed),
+                    since_progress_ms: c.progress.since().as_millis() as u64,
                 },
                 // **Un servidor en pleno handshake se reporta**, porque está corriendo
                 // y el mapa lo tiene. Su estado es el que ese mismo cliente va a
@@ -264,9 +280,23 @@ impl LspManager {
                     name:    lang.name().to_string(),
                     state:   Readiness::initial(*lang).as_str().to_string(),
                     queries: 0,
+                    since_progress_ms: slot.started.elapsed().as_millis() as u64,
                 },
             })
             .collect()
+    }
+}
+
+/// Saca del mapa el lugar de `lang`, **si todavía es ese**: entre que el servidor
+/// murió y esta llamada, otro pudo haber ocupado el lenguaje de nuevo.
+async fn release(
+    clients: &RwLock<HashMap<Language, Arc<LspSlot>>>,
+    lang:    Language,
+    slot:    &std::sync::Weak<LspSlot>,
+) {
+    let mut w = clients.write().await;
+    if w.get(&lang).is_some_and(|c| std::ptr::eq(Arc::as_ptr(c), slot.as_ptr())) {
+        w.remove(&lang);
     }
 }
 

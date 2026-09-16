@@ -36,6 +36,8 @@ pub struct LspStatus {
     pub name: String,
     pub state: String,
     pub queries: u64,
+    /// Milisegundos desde la última señal de avance del servidor, o desde que arrancó.
+    pub since_progress_ms: u64,
 }
 
 /// Lo que `warm` dice de cada lenguaje que le pidieron.
