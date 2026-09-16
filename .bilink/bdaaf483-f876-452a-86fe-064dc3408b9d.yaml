@@ -17,7 +17,11 @@ endpoint:
     - agree:
       - anibal
       link: capture b3c78ccde45ec0f0a5242337dec5c80d
-      hash: 4d16487cb692863d8d3710b188063c56aa04d92fa677d3b1e268677ece552c0a
-      hash_ast: d31812e601c6eb7131e21941c5a93bd4ee47ed5ebf2cea61207cbf1dac39af6c
-      n: declined
+      hash: 40e54ef244300a488958b4bd88a5068f4b2b30c5c5894fd3b983bd6660da5e95
+      hash_ast: 6f8fad45237599a0a94e6b2ecec67c85dec4ede5e7523e120429ed46d3c1537f
+      n:
+        1:
+          link: capture 2541358b1b0ef9413b25643bf41c95d9
+          hash: ba9c31d1da2022f7f80dd285554d0deb0142cca8179a9b1be0d430f463f49050
+          hash_ast: d9e0ddae5c62c5b966abbdbb41a49e2b796198a0ed48335e6fc499a2d827880c
     name: LspClient::definitions
