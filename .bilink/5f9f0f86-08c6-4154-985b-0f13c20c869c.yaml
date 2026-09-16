@@ -1,13 +1,11 @@
-kind: governs
 endpoint:
   0:
-    link: capture 4aa529e42dfc124d0fc9c34b0e9a3559
+    link: capture 45f307eefe0b440410e0f497ba2249ea
     accepted:
     - agree:
       - anibal
-      link: capture 4aa529e42dfc124d0fc9c34b0e9a3559
-      hash: c81f23739e5b96b8e22d7ad949f8532bb3b4743ef6191d4bd03f2a22e0a44d53
-    name: status
+      link: capture 45f307eefe0b440410e0f497ba2249ea
+      hash: cb872f8b30f684bce50ffe4c349cb59a7bf8dcfe6c607cd1cad621f2eafb9f4b
   1:
     link: capture cbdf5c163e3105082c7d2394f9b1ab88
     n:
@@ -24,4 +22,3 @@ endpoint:
           link: capture acba40a04caa4ab3b1e7b142def08458
           hash: 105c6cb6ab7e3057a7eda24b82069c11fb4d2bc886430f1245ed930f8889b4d6
           hash_ast: 3b18e21292757fd388522ed4e717092af132a643722bfcbc450f896631bbc24f
-    name: LspManager::status

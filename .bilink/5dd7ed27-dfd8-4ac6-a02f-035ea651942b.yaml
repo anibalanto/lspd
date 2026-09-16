@@ -15,9 +15,13 @@ endpoint:
         link: capture 4f358719e10ca0b5bc4fa26f9c23d5b1
     accepted:
     - agree:
-      - Anibal
+      - anibal
       link: capture 3dfb439ff26ae01e6753fb83e8c8279a
-      hash: f3f0b59888192668fdc4550793b5d4dcf8de1b1b1e655bfba422941172a1cbfb
-      hash_ast: 560e2a290f0aead05216a848d666d454ca3d30992435e685d77ca0ce3f0fd4da
-      n: declined
+      hash: 1b120fbf4c581585bc77f98dcb35104362715097a0382ddb7f813b2a9c3bc3a5
+      hash_ast: 03254b1e5483f418926e7b10f6da7b1df16afca9f52a701a152d9c511f1008e7
+      n:
+        1:
+          link: capture 4f358719e10ca0b5bc4fa26f9c23d5b1
+          hash: b8a006889dccb9f7d4cbaed85f10e84e7eae049a855f388c29b1fe4389dd5b7f
+          hash_ast: d0610a4b91435decff9b879b85d805af20c1568045604c5a63bebbaacfd9a727
     name: LspManager::new

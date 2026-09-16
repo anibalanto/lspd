@@ -6,7 +6,7 @@ endpoint:
     - agree:
       - anibal
       link: capture cae3378b069dd3adc756b54c590db991
-      hash: ffc58380ddc97771578d0c8580d8cd94760ebb6675aa6cef9a335028e2cbf95c
+      hash: e89dc8c54358ee9c49f2d0846b2faea02138f43c30f45e54677852dcf73da71e
     name: los-metodos
   1:
     link: capture 8bd91791cb4bf4800ecbd718cf7b1884

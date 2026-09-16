@@ -1,12 +1,12 @@
 kind: governs
 endpoint:
   0:
-    link: capture a0ba2bc1eeea3df1b240fcecc17c6edf
+    link: capture 65787d637a6f2e0b13175c877241ce4e
     accepted:
     - agree:
       - anibal
-      link: capture a0ba2bc1eeea3df1b240fcecc17c6edf
-      hash: e1898c8abe7cccda01fad0e7bf7e784410f60c976a32504b38ad42ed00584c25
+      link: capture 65787d637a6f2e0b13175c877241ce4e
+      hash: f07878777f291c0396392cac58fa15f4142e4ed6f8e2fa40baea7c202a2a347a
     name: memoria-del-spawn
   1:
     link: capture 3abca081a41725ce8ddc66eec9aabcf8
@@ -14,6 +14,6 @@ endpoint:
     - agree:
       - anibal
       link: capture 3abca081a41725ce8ddc66eec9aabcf8
-      hash: de0cd76a1d02129970f62f57de51cd15f9246ae12909ac9cbb1afa2c222ae075
-      hash_ast: d32a866e7dbfe7a597e2a717879b4f7516f77b611b69be7378081e8343d67e4a
+      hash: 1a491be348d68aa31b534cf2fe3807a014429cae68e994e250fbf0779bba614c
+      hash_ast: 536a7e0ddce210806d08372ef95aa772b7d1646b74c63215a0d1d16d6f7ea65b
     name: spawn_args

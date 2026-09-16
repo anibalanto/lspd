@@ -4,10 +4,9 @@ endpoint:
     link: capture 954cece3cfb786549f125b135c93541c
     accepted:
     - agree:
-      - Anibal
       - anibal
       link: capture 954cece3cfb786549f125b135c93541c
-      hash: fdaeba3d1f9eafac9d4ae75ba227476b793366592989dc0ef0e54133a178b08c
+      hash: cbfb44df43593f3381731bef792fd1ccc93fb3411c28a5b93e0f5c81af898177
   1:
     link: capture 94f25091e45157c639fece31e65e1d93
     n:
@@ -17,10 +16,10 @@ endpoint:
     - agree:
       - anibal
       link: capture 94f25091e45157c639fece31e65e1d93
-      hash: a84f2555c8d0cd9f55d7fcee17f9b24f50e1212fd6ff6d8c8741e10f6c6d1ff6
-      hash_ast: c0067d5fef4d957890a7f90fdfabfec5f62ba702011d703ad52f720858d78439
+      hash: 40cdd8633cbc1ce50568f810cf6ea7d71b736ce8dd317535103440ef5b2348b8
+      hash_ast: 0a759c128b175418120858cdc938db9bcec4ef4bfd6dad104463fb4a0ebce314
       n:
         1:
           link: capture 5161103adc65458c91837bf538a784f8 c3a1e8078a22bdad0977153ba5b8e37d
-          hash: d031a9db8935fb7dff0f49d644d1ba6bc686a7109cf32829221b5b291663d911
-          hash_ast: 83b6af9102d8e4e24fc8c3575cec9e9d7a3157508c75890881348afa25972dcb
+          hash: 8fc0fe1cc8233b2acf7f4552ab248419d254370e7be1f2ffd0ee3af89ce8a674
+          hash_ast: 68fddace6f7277458b87e7ea31cb9febaa41cea32bb086717c7cc3942316c353
