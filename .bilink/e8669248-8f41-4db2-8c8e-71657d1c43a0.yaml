@@ -4,10 +4,9 @@ endpoint:
     link: capture 954cece3cfb786549f125b135c93541c
     accepted:
     - agree:
-      - Anibal
       - anibal
       link: capture 954cece3cfb786549f125b135c93541c
-      hash: fdaeba3d1f9eafac9d4ae75ba227476b793366592989dc0ef0e54133a178b08c
+      hash: cbfb44df43593f3381731bef792fd1ccc93fb3411c28a5b93e0f5c81af898177
   1:
     link: capture 1a24c7ef2affa5ab54c97d9feedf9d62
     n:
