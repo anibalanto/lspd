@@ -1,0 +1,6 @@
+file: docs/decisions/2026-09-16.abrir-el-documento.md
+query: |-
+  (section
+    (atx_heading (inline) @n0 (#eq? @n0 "Decisión"))
+    (section
+    (atx_heading (inline) @n1 (#eq? @n1 "1. Se abre el documento a los servidores que lo necesitan, antes de cada pregunta por posición"))) @target)
