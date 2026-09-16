@@ -26,7 +26,7 @@ JSON-RPC 2.0 con **framing newline-delimited**: cada mensaje es un objeto JSON e
 | `ping` | — | `"pong"` |
 | `shutdown` | — | `null`, y cierra la conexión |
 
-`CalleeInfo` es `{symbol, name, file, line, col}`; `callees` y `callers` comparten esquema. `SymbolInfo` es `{symbol, name, kind}`. `LspStatus` es `{name, state, queries}`, con `state` en `INDEXING | READY | RUNNING` — ver [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar). `DefinitionInfo` es `{name, file, line, col, end_line, end_col}`. `WarmInfo` es `{name, error}`, con `name` el mismo que en `LspStatus` y `error` presente sólo en el que no pudo arrancar.
+`CalleeInfo` es `{symbol, name, file, line, col}`; `callees` y `callers` comparten esquema. `SymbolInfo` es `{symbol, name, kind}`. `LspStatus` es `{name, state, queries, since_progress_ms}`, con `state` en `INDEXING | READY | RUNNING` — ver [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar) — y `since_progress_ms` los milisegundos desde la última señal de avance del servidor — ver [el progreso](language-servers.md#el-progreso-dice-que-un-servidor-sigue-avanzando). `DefinitionInfo` es `{name, file, line, col, end_line, end_col}`. `WarmInfo` es `{name, error}`, con `name` el mismo que en `LspStatus` y `error` presente sólo en el que no pudo arrancar.
 
 ### `warm` arranca los servidores y no espera el handshake
 
