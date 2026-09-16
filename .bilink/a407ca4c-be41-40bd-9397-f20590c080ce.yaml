@@ -4,11 +4,11 @@ endpoint:
     link: capture 83485d7eac016faa77db86cdc4a65482
     accepted:
     - agree:
-      - Anibal
+      - anibal
       link: capture 83485d7eac016faa77db86cdc4a65482
-      hash: 3a8ff3ef056e91d4be188bce2045e3a689422f24186234d26559587615e927ab
+      hash: cb4f0f54f6faccd44465dac0569e2939430559b9916c55a07e3aada47d554cb2
   1:
-    link: capture 6b423572c322d5b1117232b449b44faf
+    link: capture d33ecb6deb220ae80e379b9e9842ee34
     accepted:
     - agree:
       - Anibal
