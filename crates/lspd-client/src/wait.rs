@@ -1,18 +1,20 @@
 //! Esperar a que los servidores de un daemon estén listos.
 //!
 //! **Es mecanismo y no política**, como [`spawn`](crate::spawn): qué servidores
-//! esperar, con qué tope y qué mostrar mientras tanto es de quien llama.
+//! esperar, cuánto silencio tolerar y qué mostrar mientras tanto es de quien llama.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 
-/// Un servidor en `status`: su nombre y su readiness.
+/// Un servidor en `status`: su nombre, su readiness y hace cuánto reportó progreso.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerState {
     pub name:  String,
     pub state: String,
+    /// `None` si el daemon no lo dice: uno anterior a `since_progress_ms`.
+    pub since_progress: Option<Duration>,
 }
 
 /// El único estado que se espera. `READY` terminó, y `RUNNING` no informa: no hay a
@@ -22,21 +24,24 @@ const INDEXING: &str = "INDEXING";
 /// Cada cuánto se consulta `status`.
 pub const POLL: Duration = Duration::from_millis(500);
 
+/// Cuánto silencio se le tolera a un servidor `INDEXING` antes de darlo por
+/// estancado.
+pub const STALL: Duration = Duration::from_secs(120);
+
 /// Cómo terminó la espera.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Waited {
-    /// Los que desaparecieron de `status`: el daemon saca del mapa el arranque que
-    /// falla.
-    pub gone:      Vec<String>,
-    /// Los que seguían indexando cuando venció el tope. Vacío si no venció.
-    pub indexing:  Vec<String>,
-    pub timed_out: bool,
+    /// Los que desaparecieron de `status`: el daemon saca del mapa al servidor cuyo
+    /// proceso terminó.
+    pub gone:    Vec<String>,
+    /// Los que siguieron `INDEXING` sin reportar progreso durante la ventana.
+    pub stalled: Vec<String>,
 }
 
 impl Waited {
-    /// Todos listos, ninguno caído, y sin tope vencido.
+    /// Todos listos: ninguno caído ni estancado.
     pub fn is_ok(&self) -> bool {
-        self.gone.is_empty() && !self.timed_out
+        self.gone.is_empty() && self.stalled.is_empty()
     }
 }
 
@@ -45,19 +50,23 @@ impl Waited {
 struct Assessment {
     indexing: Vec<String>,
     gone:     Vec<String>,
+    stalled:  Vec<String>,
 }
 
 impl Assessment {
     fn settled(&self) -> bool { self.indexing.is_empty() }
 }
 
-fn assess(servers: &[String], status: &[ServerState]) -> Assessment {
+fn assess(stall: Duration, servers: &[String], status: &[ServerState]) -> Assessment {
     let mut a = Assessment::default();
     for name in servers {
         match status.iter().find(|s| &s.name == name) {
-            None                         => a.gone.push(name.clone()),
-            Some(s) if s.state == INDEXING => a.indexing.push(name.clone()),
-            Some(_)                      => {}
+            None => a.gone.push(name.clone()),
+            Some(s) if s.state == INDEXING => match s.since_progress {
+                Some(quiet) if quiet >= stall => a.stalled.push(name.clone()),
+                _                             => a.indexing.push(name.clone()),
+            },
+            Some(_) => {}
         }
     }
     a
@@ -70,6 +79,7 @@ pub fn parse_status(v: &serde_json::Value) -> Result<Vec<ServerState>> {
         .map(|s| ServerState {
             name:  s["name"].as_str().unwrap_or("?").to_string(),
             state: s["state"].as_str().unwrap_or("?").to_string(),
+            since_progress: s["since_progress_ms"].as_u64().map(Duration::from_millis),
         })
         .collect())
 }
@@ -78,19 +88,23 @@ pub fn parse_status(v: &serde_json::Value) -> Result<Vec<ServerState>> {
 ///
 /// `servers` son nombres como los da `status`. `on_progress` recibe, en cada
 /// consulta, el tiempo desde que empezó la espera y el estado de los que se esperan y
-/// siguen en el daemon. Sin `timeout` se espera lo que haga falta.
+/// se siguen esperando.
 ///
-/// Un `Err` es que el daemon dejó de contestar. Un servidor que no arranca no es un
-/// `Err`: vuelve en [`Waited::gone`], y los demás se siguen esperando.
+/// **No hay tope total**: a un servidor que reporta progreso se lo espera lo que haga
+/// falta. El que sigue `INDEXING` y lleva `stall` sin reportarlo deja de esperarse y
+/// vuelve en [`Waited::stalled`]; [`STALL`] es la ventana por defecto.
+///
+/// Un `Err` es que el daemon dejó de contestar. Un servidor cuyo proceso termina no es
+/// un `Err`: vuelve en [`Waited::gone`], y los demás se siguen esperando.
 pub fn wait_ready(
     workspace:   &Path,
     servers:     &[String],
-    timeout:     Option<Duration>,
+    stall:       Duration,
     on_progress: impl FnMut(Duration, &[ServerState]),
 ) -> Result<Waited> {
     wait_with(
         || parse_status(&crate::rpc(workspace, "status", serde_json::json!({}))?),
-        servers, timeout, POLL, on_progress,
+        servers, stall, POLL, on_progress,
     )
 }
 
@@ -98,7 +112,7 @@ pub fn wait_ready(
 fn wait_with(
     mut fetch:       impl FnMut() -> Result<Vec<ServerState>>,
     servers:         &[String],
-    timeout:         Option<Duration>,
+    stall:           Duration,
     poll:            Duration,
     mut on_progress: impl FnMut(Duration, &[ServerState]),
 ) -> Result<Waited> {
@@ -108,30 +122,22 @@ fn wait_with(
 
     while !pending.is_empty() {
         let status = fetch()?;
-        let a = assess(&pending, &status);
+        let a = assess(stall, &pending, &status);
 
         let seen: Vec<ServerState> = status.into_iter()
-            .filter(|s| servers.contains(&s.name) && !out.gone.contains(&s.name))
+            .filter(|s| servers.contains(&s.name)
+                && !out.gone.contains(&s.name) && !out.stalled.contains(&s.name))
             .collect();
         on_progress(start.elapsed(), &seen);
 
-        // **Una vez caído, queda caído.** Si otro lo levanta de nuevo, ya no es el
-        // arranque que esta espera estaba mirando.
+        // **Una vez caído o estancado, queda así.** Si otro lo levanta de nuevo, o
+        // vuelve a avanzar, ya no es el arranque que esta espera estaba mirando.
         out.gone.extend(a.gone.iter().cloned());
+        out.stalled.extend(a.stalled.iter().cloned());
         if a.settled() { break; }
         pending = a.indexing;
 
-        let mut nap = poll;
-        if let Some(t) = timeout {
-            let left = t.saturating_sub(start.elapsed());
-            if left.is_zero() {
-                out.timed_out = true;
-                out.indexing  = pending;
-                break;
-            }
-            nap = nap.min(left);
-        }
-        std::thread::sleep(nap);
+        std::thread::sleep(poll);
     }
     Ok(out)
 }
@@ -142,8 +148,15 @@ mod tests {
     use std::cell::RefCell;
 
     fn st(name: &str, state: &str) -> ServerState {
-        ServerState { name: name.into(), state: state.into() }
+        ServerState { name: name.into(), state: state.into(), since_progress: Some(Duration::ZERO) }
     }
+
+    /// Un servidor que lleva `secs` segundos sin reportar progreso.
+    fn quiet(name: &str, state: &str, secs: u64) -> ServerState {
+        ServerState { since_progress: Some(Duration::from_secs(secs)), ..st(name, state) }
+    }
+
+    const STALL_TEST: Duration = Duration::from_secs(60);
 
     fn servers(v: &[&str]) -> Vec<String> { v.iter().map(|s| s.to_string()).collect() }
 
@@ -151,7 +164,7 @@ mod tests {
 
     #[test]
     fn ready_y_running_estan_listos_e_indexing_no() {
-        let a = assess(&servers(&["rust-analyzer", "jdtls", "typescript-language-server"]), &[
+        let a = assess(STALL_TEST, &servers(&["rust-analyzer", "jdtls", "typescript-language-server"]), &[
             st("rust-analyzer", "READY"),
             st("jdtls", "INDEXING"),
             st("typescript-language-server", "RUNNING"),
@@ -165,7 +178,7 @@ mod tests {
     /// del mapa el arranque que falla.
     #[test]
     fn el_que_no_esta_en_status_se_cayo() {
-        let a = assess(&servers(&["rust-analyzer", "jdtls"]), &[st("rust-analyzer", "READY")]);
+        let a = assess(STALL_TEST, &servers(&["rust-analyzer", "jdtls"]), &[st("rust-analyzer", "READY")]);
         assert_eq!(a.gone, servers(&["jdtls"]));
         assert!(a.indexing.is_empty());
         assert!(a.settled());
@@ -175,7 +188,7 @@ mod tests {
     /// para una pregunta no es de esta espera.
     #[test]
     fn lo_que_no_se_espera_no_cuenta() {
-        let a = assess(&servers(&["rust-analyzer"]), &[
+        let a = assess(STALL_TEST, &servers(&["rust-analyzer"]), &[
             st("rust-analyzer", "READY"),
             st("jdtls", "INDEXING"),
         ]);
@@ -205,7 +218,7 @@ mod tests {
                 vec![st("rust-analyzer", "READY"),    st("jdtls", "INDEXING")],
                 vec![st("rust-analyzer", "READY"),    st("jdtls", "READY")],
             ]),
-            &servers(&["rust-analyzer", "jdtls"]), None, TICK,
+            &servers(&["rust-analyzer", "jdtls"]), STALL_TEST, TICK,
             |_, _| vistas += 1,
         ).unwrap();
         assert!(w.is_ok(), "{w:?}");
@@ -219,7 +232,7 @@ mod tests {
         let mut vistas = 0;
         let w = wait_with(
             script(vec![vec![st("typescript-language-server", "RUNNING")]]),
-            &servers(&["typescript-language-server"]), None, TICK,
+            &servers(&["typescript-language-server"]), STALL_TEST, TICK,
             |_, _| vistas += 1,
         ).unwrap();
         assert!(w.is_ok());
@@ -236,12 +249,12 @@ mod tests {
                 vec![st("rust-analyzer", "INDEXING")],
                 vec![st("rust-analyzer", "READY")],
             ]),
-            &servers(&["rust-analyzer", "jdtls"]), None, TICK,
+            &servers(&["rust-analyzer", "jdtls"]), STALL_TEST, TICK,
             |_, _| {},
         ).unwrap();
         assert!(!w.is_ok());
         assert_eq!(w.gone, servers(&["jdtls"]));
-        assert!(w.indexing.is_empty(), "rust-analyzer se siguió esperando hasta READY");
+        assert!(w.stalled.is_empty(), "rust-analyzer se siguió esperando hasta READY");
     }
 
     /// **Una vez caído, queda caído**: si otro lo vuelve a levantar, ya no es el
@@ -253,23 +266,75 @@ mod tests {
                 vec![],
                 vec![st("jdtls", "READY")],
             ]),
-            &servers(&["jdtls"]), None, TICK,
+            &servers(&["jdtls"]), STALL_TEST, TICK,
             |_, _| {},
         ).unwrap();
         assert_eq!(w.gone, servers(&["jdtls"]));
     }
 
-    /// **El tope corta la espera**, y dice quiénes seguían indexando.
+    /// **Un `INDEXING` sin progreso durante la ventana está estancado**, y uno que
+    /// reportó hace menos no.
     #[test]
-    fn el_tope_corta_y_dice_quien_seguia() {
+    fn indexing_sin_progreso_en_la_ventana_esta_estancado() {
+        let a = assess(STALL_TEST, &servers(&["rust-analyzer", "jdtls"]), &[
+            quiet("rust-analyzer", "INDEXING", 60),
+            quiet("jdtls", "INDEXING", 59),
+        ]);
+        assert_eq!(a.stalled, servers(&["rust-analyzer"]));
+        assert_eq!(a.indexing, servers(&["jdtls"]));
+    }
+
+    /// El silencio sólo cuenta indexando: `READY` terminó y `RUNNING` no informa.
+    #[test]
+    fn el_silencio_de_un_listo_no_es_estancamiento() {
+        let a = assess(STALL_TEST, &servers(&["rust-analyzer", "pylsp"]), &[
+            quiet("rust-analyzer", "READY", 600),
+            quiet("pylsp", "RUNNING", 600),
+        ]);
+        assert!(a.stalled.is_empty());
+        assert!(a.settled());
+    }
+
+    /// **Un daemon que no dice cuándo llegó el progreso no deja ver el silencio**, y
+    /// con él no se corta la espera.
+    #[test]
+    fn sin_since_progress_no_hay_estancamiento() {
+        let s = ServerState { since_progress: None, ..st("rust-analyzer", "INDEXING") };
+        let a = assess(STALL_TEST, &servers(&["rust-analyzer"]), &[s]);
+        assert!(a.stalled.is_empty());
+        assert_eq!(a.indexing, servers(&["rust-analyzer"]));
+    }
+
+    /// **El estancado deja de esperarse, los demás no**, y la espera termina mal.
+    #[test]
+    fn el_estancado_no_corta_a_los_demas() {
         let w = wait_with(
-            script(vec![vec![st("rust-analyzer", "INDEXING"), st("jdtls", "READY")]]),
-            &servers(&["rust-analyzer", "jdtls"]), Some(Duration::from_millis(30)), TICK,
+            script(vec![
+                vec![st("rust-analyzer", "INDEXING"), st("jdtls", "INDEXING")],
+                vec![st("rust-analyzer", "INDEXING"), quiet("jdtls", "INDEXING", 60)],
+                vec![st("rust-analyzer", "INDEXING"), quiet("jdtls", "INDEXING", 61)],
+                vec![st("rust-analyzer", "READY"),    quiet("jdtls", "INDEXING", 62)],
+            ]),
+            &servers(&["rust-analyzer", "jdtls"]), STALL_TEST, TICK,
             |_, _| {},
         ).unwrap();
         assert!(!w.is_ok());
-        assert!(w.timed_out);
-        assert_eq!(w.indexing, servers(&["rust-analyzer"]));
+        assert_eq!(w.stalled, servers(&["jdtls"]));
+        assert!(w.gone.is_empty());
+    }
+
+    /// **Mientras reporte progreso, no hay tope**: un `INDEXING` que avanza se espera
+    /// aunque la espera dure mucho más que la ventana.
+    #[test]
+    fn mientras_avanza_no_hay_tope() {
+        let mut fotos = vec![vec![st("rust-analyzer", "INDEXING")]; 50];
+        fotos.push(vec![st("rust-analyzer", "READY")]);
+        let w = wait_with(
+            script(fotos),
+            &servers(&["rust-analyzer"]), Duration::from_millis(5), TICK,
+            |_, _| {},
+        ).unwrap();
+        assert!(w.is_ok(), "50 consultas superan la ventana, y el progreso no para: {w:?}");
     }
 
     /// Sin servidores que esperar no hay espera: ni una consulta.
@@ -277,7 +342,7 @@ mod tests {
     fn sin_servidores_no_consulta() {
         let w = wait_with(
             || -> Result<Vec<ServerState>> { panic!("no tenía que consultar") },
-            &[], None, TICK, |_, _| {},
+            &[], STALL_TEST, TICK, |_, _| {},
         ).unwrap();
         assert!(w.is_ok());
     }
@@ -288,7 +353,7 @@ mod tests {
     fn un_daemon_que_no_contesta_es_un_error() {
         let r = wait_with(
             || -> Result<Vec<ServerState>> { anyhow::bail!("no hay daemon") },
-            &servers(&["rust-analyzer"]), None, TICK, |_, _| {},
+            &servers(&["rust-analyzer"]), STALL_TEST, TICK, |_, _| {},
         );
         assert!(r.is_err());
     }
@@ -298,11 +363,15 @@ mod tests {
     #[test]
     fn status_se_lee_de_lo_que_contesta_el_daemon() {
         let v = serde_json::json!([
-            {"name": "rust-analyzer", "state": "READY", "queries": 3},
-            {"name": "jdtls", "state": "INDEXING", "queries": 0},
+            {"name": "rust-analyzer", "state": "READY", "queries": 3, "since_progress_ms": 0},
+            {"name": "jdtls", "state": "INDEXING", "queries": 0, "since_progress_ms": 1500},
+            {"name": "pylsp", "state": "RUNNING", "queries": 0},
         ]);
-        assert_eq!(parse_status(&v).unwrap(),
-                   vec![st("rust-analyzer", "READY"), st("jdtls", "INDEXING")]);
+        assert_eq!(parse_status(&v).unwrap(), vec![
+            st("rust-analyzer", "READY"),
+            ServerState { since_progress: Some(Duration::from_millis(1500)), ..st("jdtls", "INDEXING") },
+            ServerState { since_progress: None, ..st("pylsp", "RUNNING") },
+        ]);
         assert!(parse_status(&serde_json::json!({"no": "lista"})).is_err());
     }
 }

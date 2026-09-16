@@ -7,7 +7,7 @@ Arrancarlo, pararlo y ver cómo está es lo único que `lspd` expone como comand
 ### `lspd start` arranca uno, y no dos
 
 ```
-lspd start [--workspace <path>] [--wait [--lang <lenguaje>]... [--timeout <segundos>]]
+lspd start [--workspace <path>] [--wait [--lang <lenguaje>]... [--stall <segundos>]]
 ```
 
 | Argumento | Default | Descripción |
@@ -15,7 +15,7 @@ lspd start [--workspace <path>] [--wait [--lang <lenguaje>]... [--timeout <segun
 | `--workspace` | cwd | Raíz del workspace. Los language servers se inicializan con este directorio. |
 | `--wait` | — | Deja los servidores del workspace listos antes de volver. |
 | `--lang` | los marcadores del workspace | Qué servidores calentar: `rust`, `java`, `typescript` o `python`. Repetible. Sólo con `--wait`. |
-| `--timeout` | sin tope | Cuántos segundos se espera, como mucho. Sólo con `--wait`. |
+| `--stall` | 120 | Cuántos segundos se espera a un servidor `INDEXING` que no reporta progreso. Sólo con `--wait`. |
 
 Arranca el daemon en background. Si ya hay uno corriendo, sin `--wait` **no hace nada y retorna 1** — arrancar dos sobre el mismo socket dejaría al segundo sin poder escuchar, y decirlo es más útil que fallar al bindear.
 
@@ -55,15 +55,19 @@ Si los marcadores no dicen ningún lenguaje, `start --wait` lo dice por stderr, 
 
 ### Un servidor que no arranca hace fallar la espera, y no la corta
 
-Un servidor que no arranca —el ejecutable no está, o el proceso se cae antes de terminar el handshake— es un error de ese lenguaje: `start --wait` dice cuál y por qué por stderr, sigue esperando a los demás, y al final **retorna 1**. En CI eso tiene que verse, y no degradar en silencio.
+Un servidor que no arranca —el ejecutable no está, o su proceso termina antes de quedar listo, en el handshake o indexando— es un error de ese lenguaje: `start --wait` dice cuál y por qué por stderr, sigue esperando a los demás, y al final **retorna 1**. En CI eso tiene que verse, y no degradar en silencio.
 
-Cuando el ejecutable no está, el porqué es el error que devuelve `warm`. Cuando el proceso se cae después de arrancar, el daemon lo saca de su mapa y no guarda el porqué: `start --wait` lo ve desaparecer de `status` y dice eso.
+Cuando el ejecutable no está, el porqué es el error que devuelve `warm`. Cuando el proceso termina después de arrancar, el daemon lo saca de su mapa y no guarda el porqué: `start --wait` lo ve desaparecer de `status` y dice eso.
 
-### `--timeout` corta la espera y no el daemon
+### Un servidor que deja de reportar progreso deja de esperarse, y el daemon sigue
 
-`--timeout <segundos>` pone un tope, y no tiene default. Vencido, `start --wait` dice qué servidores seguían `INDEXING`, **retorna 1 y deja el daemon vivo**: lo que ya indexó sirve a la corrida siguiente, y apagarlo es de `stop`.
+La espera no tiene tope total: **mientras un servidor `INDEXING` reporte progreso, se lo espera lo que haga falta.** Lo que la corta es el silencio. Un servidor que sigue `INDEXING` y lleva `--stall` segundos sin reportar progreso —lo que `status` dice en `since_progress_ms`— deja de esperarse: `start --wait` dice cuál y hace cuánto, sigue esperando a los demás, **retorna 1 y deja el daemon vivo**. Lo que ya indexó sirve a la corrida siguiente, y apagarlo es de `stop`.
 
-Sin tope, en una terminal se corta con Ctrl-C, que tampoco apaga el daemon: corre en otro grupo de procesos.
+La ventana por defecto es de 120 segundos. Medido el 2026-09-16, con caché fría: el silencio más largo de `rust-analyzer` mientras indexa fue de 6,8 s sobre el impl de lspd, 2,3 s sobre el de bilinker y 2,0 s sobre el de lattice.
+
+Un daemon que no dice `since_progress_ms` no permite ver el silencio, y con él la espera no se corta.
+
+En una terminal, la espera se corta con Ctrl-C, que tampoco apaga el daemon: corre en otro grupo de procesos.
 
 ### `lspd stop` cierra los language servers y termina
 
@@ -77,14 +81,16 @@ $ lspd status
 lspd  pid=12345  endpoint=~/.lspd/accreta-impl-1c8540.sock
 
 language servers:
-  rust-analyzer               READY     queries=147
-  jdtls                       INDEXING  queries=3
-  typescript-language-server  RUNNING   queries=32
+  rust-analyzer               READY     queries=147  progreso hace 212s
+  jdtls                       INDEXING  queries=3    progreso hace 1s
+  typescript-language-server  RUNNING   queries=32   progreso hace 540s
 ```
 
 Un daemon recién arrancado no tiene ninguno: se levantan **por lenguaje y a demanda**, la primera vez que llega una pregunta sobre un archivo de ese lenguaje. `(ninguno arrancado todavía)` es un estado normal y no un problema.
 
 Los tres estados están en [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar). El que hay que saber leer es el tercero: **`RUNNING` no es peor que `READY`, es que ese servidor no informa readiness** y por eso `lspd` no la afirma. Un `INDEXING` con `queries` arriba de cero es normal y es lo que este comando existe para mostrar — son las preguntas que se contestaron con `-32001`, y dicen cuándo conviene volver.
+
+**`progreso hace` dice cuánto pasó desde la última señal de avance del servidor**: un `$/progress`, o una de las notificaciones de readiness. Un servidor que todavía no mandó ninguna cuenta desde que arrancó. Es lo que distingue un `INDEXING` que avanza de uno estancado.
 
 ## Quién lo arranca
 

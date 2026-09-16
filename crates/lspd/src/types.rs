@@ -36,6 +36,8 @@ pub struct LspStatus {
     pub name: String,
     pub state: String,
     pub queries: u64,
+    /// Milisegundos desde la última señal de avance del servidor, o desde que arrancó.
+    pub since_progress_ms: u64,
 }
 
 /// Lo que `warm` dice de cada lenguaje que le pidieron.
@@ -91,8 +93,13 @@ impl RpcResponse {
         Self::err(id, -32601, format!("method not found: {method}"))
     }
 
+    /// El language server falló, no está instalado, o el lenguaje no tiene soporte.
+    ///
+    /// **`-32000`, el de la tabla del protocolo**, y no el `-32603` genérico de
+    /// JSON-RPC: es el código que el cliente nombra `FAILED`, y un consumidor que
+    /// clasifica por código tiene que recibir ése.
     pub fn server_error(id: serde_json::Value, msg: String) -> Self {
-        Self::err(id, -32603, msg)
+        Self::err(id, -32000, msg)
     }
 
     /// El language server está `INDEXING`: todavía no puede contestar.
@@ -107,5 +114,26 @@ impl RpcResponse {
 
     fn err(id: serde_json::Value, code: i32, message: String) -> Self {
         Self { jsonrpc: "2.0".into(), id, result: None, error: Some(RpcError { code, message }) }
+    }
+}
+
+#[cfg(test)]
+mod codigos {
+    use super::*;
+
+    /// **La tabla del protocolo es la que manda.** Un language server que falló, que
+    /// no está instalado, o un lenguaje sin soporte se contesta `-32000`: es el
+    /// código que el cliente nombra `FAILED`, y un consumidor que lo clasifica por
+    /// código no puede recibir otro.
+    #[test]
+    fn a_server_error_is_the_protocol_s_minus_32000() {
+        let r = RpcResponse::server_error(serde_json::json!(1), "LSP for \"jdtls\" not found".into());
+        assert_eq!(r.error.expect("es un error").code, -32000);
+    }
+
+    #[test]
+    fn not_ready_is_minus_32001() {
+        let r = RpcResponse::not_ready(serde_json::json!(1), "INDEXING".into());
+        assert_eq!(r.error.expect("es un error").code, -32001);
     }
 }

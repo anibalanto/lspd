@@ -219,6 +219,41 @@ impl ReadinessCell {
     }
 }
 
+/// Cuándo llegó la última señal de avance de un servidor.
+///
+/// **Arranca en el momento en que se crea**: un servidor que todavía no reportó nada
+/// cuenta desde que arrancó, y así un arranque que nunca avanza también se ve.
+/// Compartido como [`ReadinessCell`], y por la misma razón.
+#[derive(Debug)]
+pub struct ProgressClock {
+    origin:  std::time::Instant,
+    /// Milisegundos desde `origin` hasta la última señal.
+    last_ms: std::sync::atomic::AtomicU64,
+}
+
+impl ProgressClock {
+    pub fn new() -> Self {
+        Self { origin: std::time::Instant::now(), last_ms: std::sync::atomic::AtomicU64::new(0) }
+    }
+
+    /// Llegó una señal de avance.
+    pub fn touch(&self) {
+        let now = self.origin.elapsed().as_millis() as u64;
+        self.last_ms.store(now, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Hace cuánto llegó la última señal, o el arranque si no llegó ninguna.
+    pub fn since(&self) -> std::time::Duration {
+        let last = std::time::Duration::from_millis(
+            self.last_ms.load(std::sync::atomic::Ordering::Relaxed));
+        self.origin.elapsed().saturating_sub(last)
+    }
+}
+
+impl Default for ProgressClock {
+    fn default() -> Self { Self::new() }
+}
+
 fn is_in_path(name: &str) -> bool {
     let Some(path_var) = std::env::var_os("PATH") else { return false };
     std::env::split_paths(&path_var).any(|dir| {

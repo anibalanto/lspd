@@ -140,6 +140,14 @@ No se cronometra ni se adivina: los dos servidores que importan lo dicen, cada u
 
 La de `rust-analyzer` **hay que pedirla**: sin `experimental.serverStatusNotification` en las capabilities del `initialize`, no la manda. La de `jdtls` viene sola.
 
+### El progreso dice que un servidor sigue avanzando
+
+La readiness dice si un servidor terminó; no dice si, mientras no termina, avanza. **Eso lo dice el progreso: el daemon anota, por servidor, cuándo llegó su última señal de avance**, y `status` lo da en `since_progress_ms`.
+
+Es señal de avance un `$/progress`, y cualquiera de las dos notificaciones de readiness de la tabla de arriba. Antes de la primera, se cuenta desde que el servidor arrancó.
+
+`$/progress` **también hay que pedirlo**: un servidor no lo manda a un cliente que no declara `window.workDoneProgress` en el `initialize`, y el daemon lo declara. Medido el 2026-09-16: sin él, `rust-analyzer` sobre el impl de lspd manda un `experimental/serverStatus` al empezar y otro al terminar, 43 s después, y nada en el medio; con él, 601 `$/progress`, con 6,8 s como silencio más largo.
+
 ### Un servidor que no informa su estado no se puede esperar
 
 `typescript-language-server` y los de Python no mandan ninguna de las dos, y `lspd` no puede inventar la señal — cronometrar el arranque sería adivinar, y adivinar mal en la dirección cara.
