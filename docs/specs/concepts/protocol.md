@@ -52,7 +52,7 @@ Y la dedup la hace el language server: las tres menciones de `Persona` en `Perso
 
 ### Hacia abajo viaja lo mismo, y por eso hay que escribirlo
 
-Esta página es la frontera de arriba —entre quien pregunta y el daemon—, y hay otra abajo: el LSP que `lspd` habla con cada language server. **Lo que cruza la de abajo es lo mismo que cruzó la de arriba: un path y una posición.** Nunca el contenido del archivo.
+Esta página es la frontera de arriba —entre quien pregunta y el daemon—, y hay otra abajo: el LSP que `lspd` habla con cada language server. **Lo que cruza la de abajo es lo mismo que cruzó la de arriba: un path y una posición.** El contenido del archivo sólo baja al servidor que no lo lee solo, y es el que el daemon lee del disco al atender la pregunta, nunca uno que trajo la pregunta.
 
 Decirlo acá parece de más, porque de arriba nunca viajó un contenido y no hay de dónde sacarlo. Pero es exactamente ahí donde se agrega: la traducción de `{file, line, col}` a una pregunta LSP es el único lugar del sistema donde alguien puede decidir leer el archivo, y una spec que sólo describe la frontera de arriba no tiene dónde decir que no.
 
@@ -60,11 +60,13 @@ Decirlo acá parece de más, porque de arriba nunca viajó un contenido y no hay
 
 Hay una segunda consecuencia del mismo hecho: **N preguntas sobre el mismo archivo son N punteros y no N copias.** Lo que se encole deja de crecer con el tamaño de los archivos que alguien esté consultando.
 
-### El servidor ya tiene el archivo
+### El servidor lee el archivo del disco, y al que sólo conoce lo abierto se lo abre el daemon
 
 `lspd` arranca a cada language server **parado en el workspace** y le declara sus raíces —ver [los language servers](language-servers.md)—, así que lee del mismo filesystem que el daemon. Mandarle un archivo que puede abrir solo es trabajo que no hace falta.
 
-**`did_open` existe en LSP porque un editor tiene buffers sin guardar**, y ahí el cliente es la única fuente de verdad de lo que el usuario está viendo. `lspd` no es un editor: no tiene buffers, y quien le pregunta mira contenido commiteado. **El disco es la fuente de verdad de las dos puntas**, así que un `did_open` acá no sincroniza nada — paga por una diferencia que no existe.
+**`typescript-language-server` es la excepción**: sólo conoce los archivos abiertos, y sin `didOpen` no encuentra el símbolo. A ése el daemon le abre el documento antes de preguntar, con lo que hay en disco en ese momento —ver [los language servers](language-servers.md#y-otra-a-typescript-language-server-se-le-abre-el-documento-antes-de-preguntar)—. Sigue sin viajar un contenido en la pregunta: el disco sigue siendo la fuente de verdad, y el daemon lo lee al atenderla.
+
+**A los demás no se les abre.** `did_open` existe en LSP porque un editor tiene buffers sin guardar, y ahí el cliente es la única fuente de verdad de lo que el usuario está viendo. `lspd` no es un editor: no tiene buffers, y quien le pregunta mira contenido commiteado. **El disco es la fuente de verdad de las dos puntas**, así que un `did_open` acá no sincroniza nada — paga por una diferencia que no existe.
 
 Es el mismo dato que esta capa ya usó del otro lado, cuando decidió arrancar al servidor parado en el workspace: **corre en esta máquina, al lado.**
 
@@ -99,6 +101,7 @@ Una respuesta con `error` es una respuesta: el daemon está vivo y esa pregunta 
 | `-32602` | los params no tienen la forma que el método espera |
 | `-32000` | el language server falló o no hay soporte para ese lenguaje |
 | `-32001` | el language server está `INDEXING`: todavía no puede contestar |
+| `-32002` | `callers` o `callees` sobre una posición donde el servidor no encontró un símbolo con llamadas |
 
 ### `-32001` dice "volvé a preguntar", y no se espera
 
@@ -108,9 +111,15 @@ Una respuesta con `error` es una respuesta: el daemon está vivo y esa pregunta 
 
 ### `-32000` es una falla del lado del daemon, y el cliente la nombra
 
-Un language server que se cayó, uno que no está instalado y un lenguaje sin soporte son el mismo caso para quien pregunta: el daemon está vivo y esa pregunta no se puede contestar. El cliente expone los dos códigos de la tabla como constantes —`NOT_READY` y `FAILED`— y `RpcError` los contesta con `is_not_ready()` e `is_failure()`, para que un consumidor no tenga que escribir el número ni leer la prosa.
+Un language server que se cayó, uno que no está instalado y un lenguaje sin soporte son el mismo caso para quien pregunta: el daemon está vivo y esa pregunta no se puede contestar. El cliente expone los tres códigos propios de la tabla como constantes —`NOT_READY`, `FAILED` y `NO_CALL_HIERARCHY`— y `RpcError` los contesta con `is_not_ready()`, `is_failure()` e `is_no_call_hierarchy()`, para que un consumidor no tenga que escribir el número ni leer la prosa.
 
 Quien pregunta decide qué hacer con cada uno. Bilinker, por ejemplo, trata `-32000` como no haber podido mirar el vecindario, no como un error de su corrida: un language server ausente es una falla de infraestructura.
+
+### `-32002` dice que ahí no hay llamadas que dar, y no es una falla
+
+**Cuando `prepareCallHierarchy` no devuelve ningún ítem, `callers` y `callees` contestan `-32002`, y no `[]`.** Un `[]` dice que el símbolo existe y nadie lo llama, o que no llama a nadie; un `prepare` vacío dice que en esa posición el servidor no encontró un símbolo. Vale para todos los servidores.
+
+No es `-32000`: el servidor no falló. Quien recorre un grafo saltea ese nodo, sin leerlo como "no hay llamadas" y sin cortar el recorrido.
 
 ## Qué no está en el protocolo
 
