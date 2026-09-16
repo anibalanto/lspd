@@ -145,6 +145,16 @@ impl Language {
         }
     }
 
+    /// Si este servidor necesita el documento abierto para contestar sobre él. La
+    /// cuarta casilla de la tabla.
+    ///
+    /// **`tsserver` arma el proyecto a partir de lo abierto**: sin `didOpen`,
+    /// `prepareCallHierarchy` vuelve vacío. `jdtls` importa el proyecto entero y
+    /// `rust-analyzer` carga el workspace de cargo, así que leen del disco solos.
+    pub fn needs_open(&self) -> bool {
+        matches!(self, Self::TypeScript)
+    }
+
     /// Si este servidor avisa cuándo terminó de indexar.
     ///
     /// **Es una propiedad del servidor, no de `lspd`.** Los dos que lo hacen lo
@@ -371,6 +381,16 @@ mod spawn_args_tests {
     fn los_que_no_piden_nada_se_lanzan_pelados() {
         for lang in [Language::Rust, Language::Python] {
             assert!(lang.spawn_args().is_empty(), "{lang:?} no debería llevar args");
+        }
+    }
+
+    /// **`typescript-language-server` sólo conoce lo abierto**: sin `didOpen`, el
+    /// `prepareCallHierarchy` vuelve vacío. Los otros leen el proyecto del disco.
+    #[test]
+    fn solo_typescript_necesita_el_documento_abierto() {
+        assert!(Language::TypeScript.needs_open());
+        for lang in [Language::Rust, Language::Java, Language::Python] {
+            assert!(!lang.needs_open(), "{lang:?}");
         }
     }
 }

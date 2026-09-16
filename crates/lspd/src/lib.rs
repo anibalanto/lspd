@@ -10,6 +10,7 @@
 //!
 //! La spec vive en `subsystems/lspd/`.
 
+pub mod documents;
 pub mod ipc;
 pub mod language;
 pub mod lsp_client;

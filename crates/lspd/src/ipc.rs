@@ -144,6 +144,8 @@ async fn dispatch(
                 // poder distinguirlo para no leer el vacío como "no hay".
                 Err(e) if e.downcast_ref::<crate::lsp_manager::NotReady>().is_some() =>
                     RpcResponse::not_ready(id, e.to_string()),
+                Err(e) if e.downcast_ref::<crate::lsp_client::NoCallHierarchy>().is_some() =>
+                    RpcResponse::no_call_hierarchy(id, e.to_string()),
                 Err(e) => RpcResponse::server_error(id, e.to_string()),
             };
             (resp, false)
