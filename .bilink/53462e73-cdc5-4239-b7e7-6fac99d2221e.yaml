@@ -15,9 +15,13 @@ endpoint:
         link: capture 36bf5a7a928eb32dac01744ad6b4987a efd8069fdf39159970f30040bc8b6300
     accepted:
     - agree:
-      - Anibal
+      - anibal
       link: capture 8bd91791cb4bf4800ecbd718cf7b1884
       hash: ec4b3306c5c9db4c28dac050ebb536286097bb36a35fd008670555d67bdb2069
       hash_ast: 07812a7d66b16b82b145a061d8ccfc306af1afc84b3d57559288730e9739fb89
-      n: declined
+      n:
+        1:
+          link: capture 36bf5a7a928eb32dac01744ad6b4987a efd8069fdf39159970f30040bc8b6300
+          hash: 3b4fb5b15e3fba7c00cafc386d37ac96dcab8ba8f49a03f67ed3915f0b9c5500
+          hash_ast: 23504a7b8686aaa52910158556c76a2da379c76050fedefce6fea516b329e728
     name: ipc::dispatch
