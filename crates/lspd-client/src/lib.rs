@@ -59,6 +59,13 @@ pub fn pid(workspace: &std::path::Path) -> u32 {
 /// `concepts/protocol.md`.
 pub const NOT_READY: i32 = -32001;
 
+/// El código de `-32000`: el language server falló, no está instalado, o no hay
+/// soporte para ese lenguaje.
+///
+/// **Los tres casos son uno solo para quien pregunta:** el daemon está vivo y esa
+/// pregunta no se puede contestar. Ver `concepts/protocol.md`.
+pub const FAILED: i32 = -32000;
+
 /// Un error que el daemon **contestó**, con su código.
 ///
 /// El código viaja porque la tabla del protocolo no sirve aplastada a un mensaje:
@@ -76,6 +83,10 @@ pub struct RpcError {
 impl RpcError {
     /// Si es el daemon diciendo *"volvé a preguntar"*.
     pub fn is_not_ready(&self) -> bool { self.code == NOT_READY }
+
+    /// Si es el daemon diciendo *"esa pregunta no se puede contestar"*: el language
+    /// server falló, no está instalado, o el lenguaje no tiene soporte.
+    pub fn is_failure(&self) -> bool { self.code == FAILED }
 }
 
 impl std::fmt::Display for RpcError {
@@ -193,4 +204,22 @@ pub fn spawn(workspace: &std::path::Path) -> Result<u32> {
         if responds(workspace) { return Ok(child.id()); }
     }
     anyhow::bail!("el daemon no respondió en 5s")
+}
+
+#[cfg(test)]
+mod codigos {
+    use super::*;
+
+    /// Los dos códigos de la tabla del protocolo, cada uno con su pregunta.
+    #[test]
+    fn each_code_answers_its_own_question() {
+        let indexando = RpcError { code: NOT_READY, message: "INDEXING".into() };
+        assert!(indexando.is_not_ready() && !indexando.is_failure());
+
+        let sin_server = RpcError {
+            code: FAILED,
+            message: "LSP for \"jdtls\" not found: install one of [\"jdtls\"]".into(),
+        };
+        assert!(sin_server.is_failure() && !sin_server.is_not_ready(), "una falla no es un 'volvé a preguntar'");
+    }
 }
