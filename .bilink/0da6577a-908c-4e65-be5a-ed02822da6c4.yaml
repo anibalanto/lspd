@@ -1,14 +1,12 @@
 kind: governs
 endpoint:
   0:
-    link: capture b3d514201e6d5470cc86ab078a1c23de
+    link: capture d04146829ffd73848f749ff49360a04d
     accepted:
     - agree:
-      - Anibal
       - anibal
-      link: capture b3d514201e6d5470cc86ab078a1c23de
-      hash: 3a2b42ada3a05e0c2e528649b2452904211792da3650764b745c6b1ed0f474aa
-    name: a-demanda
+      link: capture d04146829ffd73848f749ff49360a04d
+      hash: f930b4697a3161c96485d92f0b41d7ad9a2c19c12c1c4c08c6a6efd37f02ae48
   1:
     link: capture 0875b638b4e0e6005b31656b134ed170
     accepted:
@@ -18,4 +16,3 @@ endpoint:
       hash: 8eed80fb49f6795ef70887bc6a4bc6c08a39534b0e94f8f935252ed05e7de18e
       hash_ast: 7bc95eba156c055db08040bb29110ebc68a6ef6bb2c044f216e00a446729a107
       n: declined
-    name: LspClient::spawn
