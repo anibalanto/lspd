@@ -26,7 +26,7 @@ JSON-RPC 2.0 con **framing newline-delimited**: cada mensaje es un objeto JSON e
 | `ping` | — | `"pong"` |
 | `shutdown` | — | `null`, y cierra la conexión |
 
-`CalleeInfo` es `{symbol, name, file, line, col}`; `callees` y `callers` comparten esquema. `SymbolInfo` es `{symbol, name, kind}`. `LspStatus` es `{name, state, queries, since_progress_ms}`, con `state` en `INDEXING | READY | RUNNING` — ver [los language servers](language-servers.md#un-servidor-que-no-informa-su-estado-no-se-puede-esperar) — y `since_progress_ms` los milisegundos desde la última señal de avance del servidor — ver [el progreso](language-servers.md#el-progreso-dice-que-un-servidor-sigue-avanzando). `DefinitionInfo` es `{name, file, line, col, end_line, end_col}`. `WarmInfo` es `{name, error}`, con `name` el mismo que en `LspStatus` y `error` presente sólo en el que no pudo arrancar.
+`CalleeInfo` es `{symbol, name, file, line, col}`; `callees` y `callers` comparten esquema. `SymbolInfo` es `{symbol, name, kind}`. `LspStatus` es `{name, state, queries, since_progress_ms, error}`, con `state` en `STARTING | INDEXING | READY | RUNNING | FAILED` — ver [los language servers](language-servers.md#un-servidor-que-arranca-está-starting-y-uno-que-se-cae-queda-failed-con-su-porqué) —, `error` presente sólo en un `FAILED`, y `since_progress_ms` los milisegundos desde la última señal de avance del servidor — ver [el progreso](language-servers.md#el-progreso-dice-que-un-servidor-sigue-avanzando). `DefinitionInfo` es `{name, file, line, col, end_line, end_col}`. `WarmInfo` es `{name, error}`, con `name` el mismo que en `LspStatus` y `error` presente sólo en el que no pudo arrancar.
 
 ### `warm` arranca los servidores y no espera el handshake
 
@@ -34,7 +34,7 @@ JSON-RPC 2.0 con **framing newline-delimited**: cada mensaje es un objeto JSON e
 
 Con `languages` vacío, o sin `languages`, el daemon calienta los lenguajes que [los marcadores](language-servers.md#los-marcadores-de-la-raíz-dicen-qué-lenguajes-hay) dicen de su workspace. Un workspace sin marcadores contesta `[]`.
 
-Un lenguaje que no puede arrancar vuelve en la lista con su `error`, y los demás arrancan igual: un ejecutable que no está en PATH, o un lenguaje que no está en la tabla. **Un arranque que falla no deja el lugar tomado**, así que el próximo `warm`, o la próxima pregunta, lo intenta de nuevo.
+Un lenguaje que no puede arrancar vuelve en la lista con su `error`, y los demás arrancan igual: un ejecutable que no está en PATH, o un lenguaje que no está en la tabla. **Un arranque que falla no deja el lugar tomado**, así que el próximo `warm`, o la próxima pregunta, lo intenta de nuevo. Uno que falla después de lanzar el proceso, en el handshake, no vuelve en `warm` —que ya contestó—: queda `FAILED` en `status`.
 
 ### `definitions` es la única pregunta que no es del call graph
 

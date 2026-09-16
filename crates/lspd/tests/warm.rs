@@ -27,8 +27,11 @@ fn fake_path() -> &'static Path {
             // Arranca y no contesta nunca: un handshake eterno.
             // Con ruta: el `PATH` de estos tests es sólo este directorio.
             script("rust-analyzer", "exec /bin/sleep 60");
-            // Arranca y se muere antes de contestar.
-            script("jdtls", "exit 1");
+            // Arranca y se muere antes de contestar, diciendo por qué en stderr. En un
+            // workspace con `.vive` arranca y no contesta nunca: el servidor arreglado.
+            script("jdtls", "[ -f .vive ] && exec /bin/sleep 60\n\
+                echo \"error: required option '--stdio' not specified\" >&2\n\
+                exit 1");
         }
         std::env::set_var("PATH", dir.path());
         dir
@@ -107,7 +110,7 @@ async fn warm_vuelve_sin_esperar_el_handshake() {
 
     let st = m.status().await;
     assert_eq!(st.len(), 1);
-    assert_eq!(st[0].state, "INDEXING");
+    assert_eq!(st[0].state, "STARTING", "en el handshake todavía no hay readiness");
 }
 
 /// **Un servidor en pleno handshake también dice hace cuánto**: desde que empezó a
@@ -159,25 +162,39 @@ async fn sin_lenguajes_calienta_los_de_los_marcadores() {
 /// **Un proceso que se muere en el handshake libera el lugar solo**, aunque nadie
 /// esté esperando su arranque: con `warm` no hay quién espere, y si el lugar quedara
 /// tomado el lenguaje no se podría volver a arrancar sin reiniciar el daemon.
+///
+/// **Y no desaparece sin decir nada**: `status` lo muestra `FAILED`, con el error y lo
+/// que el servidor dijo en stderr, hasta que otro arranque lo reemplaza.
 #[cfg(unix)]
 #[tokio::test]
-async fn un_arranque_que_se_cae_libera_el_lugar_sin_que_nadie_espere() {
+async fn un_arranque_que_se_cae_queda_failed_y_libera_el_lugar() {
     let ws = workspace_with(&[]);
     let m = LspManager::new(ws.path().to_path_buf());
 
     let r = m.warm(&langs(&["java"])).await;
     assert!(r[0].error.is_none(), "el ejecutable está: el arranque empieza");
 
-    let mut gone = false;
+    let mut failed = None;
     for _ in 0..100 {
-        if m.status().await.is_empty() { gone = true; break; }
+        if let Some(s) = m.status().await.into_iter().find(|s| s.state == "FAILED") {
+            failed = Some(s);
+            break;
+        }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    assert!(gone, "el jdtls que se murió sigue ocupando el lugar");
+    let failed = failed.expect("el jdtls que se murió tiene que figurar FAILED");
+    assert_eq!(failed.name, "jdtls");
+    let e = failed.error.expect("FAILED lleva su error");
+    assert!(e.contains("required option '--stdio' not specified"), "con su stderr: {e}");
 
-    // Y el lugar se puede volver a ocupar.
+    // Y el lugar se puede volver a ocupar, y el arranque nuevo reemplaza al FAILED.
+    std::fs::write(ws.path().join(".vive"), "").unwrap();
     let again = m.warm(&langs(&["java"])).await;
     assert!(again[0].error.is_none());
+    let st = m.status().await;
+    assert_eq!(st.len(), 1, "{:?}", st.iter().map(|s| (&s.name, &s.state)).collect::<Vec<_>>());
+    assert_eq!(st[0].state, "STARTING");
+    assert!(st[0].error.is_none());
 }
 
 /// Por el protocolo: `warm` es un método, y su resultado es `[{name, error}]`.
