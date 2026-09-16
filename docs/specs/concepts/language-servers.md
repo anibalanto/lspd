@@ -66,6 +66,19 @@ Y hay una razón de más para que sea explícito: **el que corre `lspd` casi nun
 
 > **Es la clase de dato que sólo se descubre corriéndolo.** Ninguno de los dos está en la especificación de LSP, y los dos aparecieron con el servidor prendido devolviendo respuestas bien formadas y vacías.
 
+### Y otra: a `typescript-language-server` se le abre el documento antes de preguntar
+
+**`tsserver` arma el proyecto a partir de los archivos abiertos**, así que sobre un archivo que nadie abrió `prepareCallHierarchy` vuelve vacío. Medido el 2026-09-16 sobre un repo Angular: sin `didOpen`, `prepareCallHierarchy` sobre un método de un servicio da `null`; con `didOpen` da el ítem, e `incomingCalls` encuentra al componente que lo llama.
+
+| Servidor | Necesita el documento abierto |
+|---|---|
+| `typescript-language-server` | sí |
+| `rust-analyzer` | no: carga el workspace de cargo |
+| `jdtls` | no: importa el proyecto entero |
+| `jedi-language-server`, `pylsp` | no, sin medir |
+
+**A los que lo necesitan, el daemon les abre el documento antes de cada pregunta por posición**, con el texto que hay en disco en ese momento. Recuerda qué versión mandó de cada documento: si en disco cambió, manda el texto entero nuevo con `didChange` y la versión siguiente; si no cambió, no manda nada. Un documento abierto no se cierra mientras vive el servidor.
+
 ## El ciclo de un servidor
 
 ### Se levantan a demanda y se reusan
