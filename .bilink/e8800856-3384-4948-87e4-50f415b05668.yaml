@@ -17,11 +17,11 @@ endpoint:
     - agree:
       - anibal
       link: capture cbdf5c163e3105082c7d2394f9b1ab88
-      hash: f8a9fda9935b0cc272c4f7ac122857a6ccea3fdb0abd698ec3ee6720f60e5b1b
-      hash_ast: a6c6b7b911d4dcb19e28386bfd841463ff322ee0ff5d1d84f59a2f31fa944dab
+      hash: cc77a52cac1870a20775edceb04ffe7049ec4bf01e36d18a1e0112f985d29b4b
+      hash_ast: 2c4cad6b4b67494a4b5af70e9b2e43139bb48e3ec79c7c8c9bdc8ff7d98e2c7b
       n:
         1:
           link: capture acba40a04caa4ab3b1e7b142def08458
-          hash: 590133f8b6c09e0db1bd82a18d5b41f2d3933d7c812a3ca00fbb350a7edd113e
-          hash_ast: 21d148b82ba3bcc17159a6b1198f05587f7b6395b1248ba79428e1c7af6d26a6
+          hash: 105c6cb6ab7e3057a7eda24b82069c11fb4d2bc886430f1245ed930f8889b4d6
+          hash_ast: 3b18e21292757fd388522ed4e717092af132a643722bfcbc450f896631bbc24f
     name: LspManager::status
