@@ -91,6 +91,40 @@ async fn el_documento_se_abre_y_sigue_al_disco() {
     assert!(change < last_prepare, "antes de preguntar: {l:?}");
 }
 
+/// **Antes de preguntar se sincronizan todos los documentos abiertos, no sólo el de
+/// la pregunta**: el servidor contesta sobre un archivo con lo que tiene abierto de
+/// los demás, y un `b.ts` viejo haría que las llamadas a `a.ts` salgan de un texto
+/// que ya no está en disco. El que ya no existe se cierra.
+#[tokio::test]
+async fn se_sincronizan_todos_los_abiertos() {
+    fake_path();
+    let ws = tempfile::tempdir().unwrap();
+    let a = ws.path().join("a.ts");
+    let b = ws.path().join("b.ts");
+    let c = ws.path().join("c.ts");
+    std::fs::write(&a, "export function f() {}\n").unwrap();
+    std::fs::write(&b, "export function g() { f() }\n").unwrap();
+    std::fs::write(&c, "export function k() {}\n").unwrap();
+    let m = LspManager::new(ws.path().to_path_buf());
+    let path = |p: &Path| p.to_string_lossy().to_string();
+
+    let _ = m.callers(&path(&b), 0, 16).await;
+    let _ = m.callers(&path(&c), 0, 16).await;
+    let _ = m.callers(&path(&a), 0, 16).await;
+    assert_eq!(count(&log(ws.path()), "textDocument/didOpen"), 3);
+
+    std::fs::write(&b, "export function g() { h() }\n").unwrap();
+    std::fs::remove_file(&c).unwrap();
+    let _ = m.callers(&path(&a), 0, 16).await;
+
+    let l = log(ws.path());
+    assert_eq!(count(&l, "textDocument/didChange"), 1, "el b.ts que cambió se manda: {l:?}");
+    assert_eq!(count(&l, "textDocument/didClose"), 1, "el c.ts que ya no está se cierra: {l:?}");
+    let last_prepare = l.iter().rposition(|m| m == "textDocument/prepareCallHierarchy").unwrap();
+    assert!(l.iter().rposition(|m| m == "textDocument/didChange").unwrap() < last_prepare, "{l:?}");
+    assert!(l.iter().rposition(|m| m == "textDocument/didClose").unwrap() < last_prepare, "{l:?}");
+}
+
 /// **Un `prepareCallHierarchy` sin ítem es un error, y no `[]`**: `[]` diría que nadie
 /// llama a un símbolo que el servidor no encontró.
 #[tokio::test]
