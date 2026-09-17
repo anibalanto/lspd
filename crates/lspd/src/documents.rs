@@ -48,6 +48,18 @@ impl OpenDocuments {
     }
 }
 
+impl OpenDocuments {
+    /// Los documentos abiertos.
+    pub fn uris(&self) -> Vec<Url> {
+        self.0.keys().cloned().collect()
+    }
+
+    /// Olvida un documento que se cerró: si se vuelve a pedir, se abre de cero.
+    pub fn forget(&mut self, uri: &Url) {
+        self.0.remove(uri);
+    }
+}
+
 /// El `languageId` de LSP de un archivo, por su extensión.
 pub fn language_id(file: &Path) -> &'static str {
     match file.extension().and_then(|e| e.to_str()).unwrap_or("") {
@@ -102,6 +114,22 @@ mod tests {
         d.sync(&uri("/ws/a.ts"), "x");
         d.sync(&uri("/ws/a.ts"), "y");
         assert_eq!(d.sync(&uri("/ws/b.ts"), "y"), DocSync::Open { version: 1 });
+    }
+
+    /// Los abiertos se pueden recorrer, y uno olvidado se vuelve a abrir desde cero.
+    #[test]
+    fn un_documento_olvidado_se_vuelve_a_abrir() {
+        let mut d = OpenDocuments::default();
+        d.sync(&uri("/ws/a.ts"), "x");
+        d.sync(&uri("/ws/a.ts"), "y");
+        d.sync(&uri("/ws/b.ts"), "x");
+        let mut abiertos = d.uris();
+        abiertos.sort();
+        assert_eq!(abiertos, vec![uri("/ws/a.ts"), uri("/ws/b.ts")]);
+
+        d.forget(&uri("/ws/a.ts"));
+        assert_eq!(d.uris(), vec![uri("/ws/b.ts")]);
+        assert_eq!(d.sync(&uri("/ws/a.ts"), "y"), DocSync::Open { version: 1 });
     }
 
     #[test]
