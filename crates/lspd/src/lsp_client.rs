@@ -502,38 +502,45 @@ impl LspClient {
         let _ = server.exit(());
     }
 
-    /// Deja el documento en el servidor como está en disco, si este servidor lo
-    /// necesita abierto: lo abre la primera vez, y manda el texto nuevo si cambió.
+    /// Deja los documentos en el servidor como están en disco, si este servidor los
+    /// necesita abiertos: abre el de la pregunta la primera vez, y manda el texto nuevo
+    /// de cada abierto que cambió.
+    ///
+    /// **Todos los abiertos, no sólo el de la pregunta**: el servidor contesta sobre
+    /// un archivo con lo que tiene abierto de los demás, y uno viejo haría que las
+    /// llamadas salgan de un texto que ya no está en disco. El que ya no existe se
+    /// cierra, y el servidor vuelve a lo que haya en disco.
     ///
     /// **Lo que se manda es el disco en el momento de contestar**, no algo que trajo
     /// la pregunta, que sigue siendo un path y una posición. Y el candado cubre leer
-    /// y mandar: dos preguntas sobre el mismo archivo no se cruzan las versiones.
+    /// y mandar: dos preguntas no se cruzan las versiones.
     async fn open(&self, file: &Path, uri: &Url) -> Result<()> {
         if !self.lang.needs_open() { return Ok(()); }
 
         let mut docs = self.documents.lock().await;
+        let mut server = self.server.clone();
+
+        for other in docs.uris().into_iter().filter(|u| u != uri) {
+            let path = other.to_file_path().unwrap_or_default();
+            match tokio::fs::read_to_string(&path).await {
+                Ok(text) => {
+                    let sync = docs.sync(&other, &text);
+                    send(&mut server, &other, &path, sync, text)?;
+                }
+                Err(_) => {
+                    docs.forget(&other);
+                    server.did_close(DidCloseTextDocumentParams {
+                        text_document: TextDocumentIdentifier { uri: other },
+                    }).map_err(|e| anyhow::anyhow!("didClose: {e:?}"))?;
+                }
+            }
+        }
+
         let text = tokio::fs::read_to_string(uri.to_file_path().unwrap_or_else(|_| file.to_path_buf()))
             .await
             .map_err(|e| anyhow::anyhow!("no se pudo leer {}: {e}", file.display()))?;
-        let mut server = self.server.clone();
-        match docs.sync(uri, &text) {
-            DocSync::Open { version } => server.did_open(DidOpenTextDocumentParams {
-                text_document: TextDocumentItem {
-                    uri: uri.clone(),
-                    language_id: language_id(file).to_string(),
-                    version,
-                    text,
-                },
-            }),
-            DocSync::Change { version } => server.did_change(DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier { uri: uri.clone(), version },
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: None, range_length: None, text,
-                }],
-            }),
-            DocSync::Current => return Ok(()),
-        }
-        .map_err(|e| anyhow::anyhow!("didOpen/didChange: {e:?}"))
+        let sync = docs.sync(uri, &text);
+        send(&mut server, uri, file, sync, text)
     }
 
     /// Los ítems de call hierarchy en una posición. **Ninguno es un error**, y no un
@@ -583,6 +590,30 @@ impl LspClient {
 /// El [`shutdown`](LspClient::shutdown) por LSP sigue siendo el ordenado —le da al
 /// servidor la chance de cerrar sus índices—; esto es lo que vale cuando no lo
 /// atienden, y lo único que vale cuando nadie lo llamó.
+/// Manda lo que [`OpenDocuments::sync`] dijo que hay que mandar de un documento.
+fn send(server: &mut async_lsp::ServerSocket, uri: &Url, file: &Path, sync: DocSync, text: String)
+    -> Result<()>
+{
+    match sync {
+        DocSync::Open { version } => server.did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: language_id(file).to_string(),
+                version,
+                text,
+            },
+        }),
+        DocSync::Change { version } => server.did_change(DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier { uri: uri.clone(), version },
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None, range_length: None, text,
+            }],
+        }),
+        DocSync::Current => return Ok(()),
+    }
+    .map_err(|e| anyhow::anyhow!("didOpen/didChange: {e:?}"))
+}
+
 impl Drop for LspClient {
     fn drop(&mut self) {
         // **El mainloop primero.** Matar al hijo con la task viva le da a esa task un

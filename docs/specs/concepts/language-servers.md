@@ -77,7 +77,9 @@ Y hay una razón de más para que sea explícito: **el que corre `lspd` casi nun
 | `jdtls` | no: importa el proyecto entero |
 | `jedi-language-server`, `pylsp` | no, sin medir |
 
-**A los que lo necesitan, el daemon les abre el documento antes de cada pregunta por posición**, con el texto que hay en disco en ese momento. Recuerda qué versión mandó de cada documento: si en disco cambió, manda el texto entero nuevo con `didChange` y la versión siguiente; si no cambió, no manda nada. Un documento abierto no se cierra mientras vive el servidor.
+**A los que lo necesitan, el daemon les abre el documento antes de cada pregunta por posición**, con el texto que hay en disco en ese momento. Recuerda qué versión mandó de cada documento: si en disco cambió, manda el texto entero nuevo con `didChange` y la versión siguiente; si no cambió, no manda nada.
+
+**Antes de cada pregunta revisa todos los documentos que abrió, no sólo el de la pregunta**: `tsserver` resuelve las llamadas a un archivo con lo que tiene abierto de los demás, y uno viejo daría llamadas que ya no están en disco. Medido el 2026-09-16 con dos archivos: con `b.ts` abierto y cambiado en disco, `callers` sobre `a.ts` contestaba con el `b.ts` de antes. Un documento abierto cuyo archivo ya no existe se cierra con `didClose`; los demás no se cierran mientras vive el servidor.
 
 ## El ciclo de un servidor
 
